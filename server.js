@@ -12,7 +12,7 @@ const app = express();
 app.use(express.json());
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const MODEL = 'llama-3.3-70b-versatile';
+const MODELO = 'openai/gpt-oss-120b';
 
 app.post('/completar', async (req, res) => {
   const apiKey = process.env.GROQ_API_KEY;
