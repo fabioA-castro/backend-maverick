@@ -26,7 +26,8 @@ const rutasCompletar = require('./rutas/completar');
 const rutasPrompt = require('./rutas/promptRutas');
 
 const app = express();
-app.use(express.json());
+// Límite alto para permitir BC3 grande en prompt arbol_jerarquico_bc3 (ej. 120k caracteres + plantilla)
+app.use(express.json({ limit: '15mb' }));
 
 // Montar rutas
 app.use('/', rutasCompletar);
