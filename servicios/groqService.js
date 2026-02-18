@@ -11,7 +11,7 @@ async function llamarGroq(mensajes, opciones = {}) {
     throw new Error('GROQ_API_KEY no configurada en el servidor');
   }
 
-  const modelo = opciones.modelo || 'llama-3.3-70b-versatile';
+  const modelo = opciones.modelo || 'openai/gpt-oss-120b';
   const temperatura = opciones.temperatura ?? 0.2;
   const max_tokens = opciones.max_tokens ?? 1024;
 
