@@ -1,0 +1,15 @@
+{
+  "name": "presupuestos-kontry-backend-groq",
+  "version": "1.0.0",
+  "description": "Backend mínimo: la app Android envía el prompt aquí; este servidor llama a Groq con la API Key (nunca en la app).",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}

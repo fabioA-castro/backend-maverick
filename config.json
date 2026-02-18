@@ -1,0 +1,8 @@
+{
+  "groq": {
+    "modelo": "openai/gpt-oss-120b",
+    "temperatura": 0.2,
+    "max_tokens": 1024
+  },
+  "modo_desarrollo": false
+}
