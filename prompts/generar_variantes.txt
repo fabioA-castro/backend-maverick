@@ -1,0 +1,16 @@
+Responde SOLO con palabras que aparecen en la descripción. No inventes.
+
+Extrae solo 3 datos:
+1) Material principal o primero.
+2) Característica de ese material.
+3) Medida de ese material.
+Si no hay, escribe "-".
+
+Responde con exactamente 5 líneas:
+1 = material
+2 = característica
+3 = medida
+4 y 5 = dos nombres de variante en español usando SOLO las palabras de las líneas 1, 2 y 3, pero puedes añadir preposiciones (de, con, en, para, a). No añadas ninguna otra palabra.
+
+Descripción:
+{{DESCRIPCION}}

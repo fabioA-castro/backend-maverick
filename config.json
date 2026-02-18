@@ -1,0 +1,8 @@
+{
+  "groq": {
+    "modelo": "llama-3.3-70b-versatile",
+    "temperatura": 0.2,
+    "max_tokens": 1024
+  },
+  "modo_desarrollo": false
+}
