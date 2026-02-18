@@ -116,13 +116,28 @@ function updatePrompt(id, template) {
   }
 }
 
+// Límite para BC3 en arbol_jerarquico_bc3: modelo Groq ~8000 tokens; plantilla ~1200, BC3 ~6800 → ~18k caracteres
+const MAX_BC3_CHARS_ARBOL = 18000;
+
+function truncarBc3PorLinea(texto, maxChars) {
+  if (typeof texto !== 'string' || texto.length <= maxChars) return texto;
+  const chunk = texto.slice(0, maxChars);
+  const lastNl = chunk.lastIndexOf('\n');
+  return lastNl >= 0 ? texto.slice(0, lastNl + 1) : chunk;
+}
+
 function buildPromptFromMaster(promptId, datos) {
   let template = promptsMap[promptId];
   if (!template) return null;
   for (const [key, value] of Object.entries(datos || {})) {
+    let val = String(value ?? '');
+    if (promptId === 'arbol_jerarquico_bc3' && key.toUpperCase() === 'BC3_CONTENT' && val.length > MAX_BC3_CHARS_ARBOL) {
+      val = truncarBc3PorLinea(val, MAX_BC3_CHARS_ARBOL);
+      console.warn(`[promptsData] BC3_CONTENT truncado a ${val.length} caracteres (límite ${MAX_BC3_CHARS_ARBOL}) para arbol_jerarquico_bc3`);
+    }
     template = template.replace(
       new RegExp(`{{${key.toUpperCase()}}}`, 'g'),
-      String(value ?? '')
+      val
     );
   }
   return template;
