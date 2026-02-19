@@ -37,8 +37,9 @@ function getApiKey(key1, key2) {
 }
 
 async function llamarGroq(mensajes, opciones = {}) {
-  const key1 = process.env.GROQ_API_KEY?.trim();
-  const key2 = (process.env.GROQ_API_KEY_2 || process.env.CLAVE_DE_API_DE_GROQ_2 || process.env['CLAVE DE API DE GROQ 2'] || '').trim();
+  // Llave 1 = cuenta nueva (variable con "clave": CLAVE_API_GROQ_2, GROQ_API_KEY_2, etc.). Llave 2 = cuenta antigua (GROQ_API_KEY).
+  const key1 = (process.env.CLAVE_API_GROQ_2 || process.env.GROQ_API_KEY_2 || process.env.CLAVE_DE_API_DE_GROQ_2 || process.env['CLAVE DE API DE GROQ 2'] || '').trim();
+  const key2 = process.env.GROQ_API_KEY?.trim();
   const tieneDos = !!(key1 && key2);
   const keyPrincipal = key1 || key2;
   if (!keyPrincipal) {

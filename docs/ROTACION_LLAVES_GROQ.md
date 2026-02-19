@@ -9,10 +9,10 @@ En esta carpeta (backend-maverick) está todo lo de rotación de llaves. Nada de
 
 ## Variables de entorno
 
-- `GROQ_API_KEY` → llave 1  
-- `GROQ_API_KEY_2` (o `CLAVE_DE_API_DE_GROQ_2`) → llave 2  
+- **Llave 1** (cuenta principal / nueva) → `CLAVE_API_GROQ_2` o `GROQ_API_KEY_2` (o `CLAVE_DE_API_DE_GROQ_2`) — la que tiene "clave" en el nombre.
+- **Llave 2** (cuenta reserva / antigua) → `GROQ_API_KEY` — sin "clave" en el nombre.
 
-El orden lo define el código: la primera variable = llave 1, la segunda = llave 2.
+El backend acepta cualquiera de esos nombres para la segunda variable; así puedes usar `CLAVE_API_GROQ_2` en el editor de variables y se usará como llave 1 (cuenta nueva).
 
 ## Cómo saber si hubo rotación
 
