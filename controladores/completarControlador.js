@@ -43,19 +43,21 @@ async function completar(req, res) {
     const maxTokens = (promptId === 'arbol_jerarquico_bc3')
       ? (config.groq?.max_tokens_arbol_bc3 ?? 8192)
       : (config.groq?.max_tokens ?? 4096);
-    // Rotación por bloque en árbol BC3: bloque 0 → Llave 1, bloque 1 → Llave 2, … (reparto entre todas las llaves configuradas)
+    // Rotación por bloque en árbol BC3 (solo si no hay GROQ_LLAVE_SOLO_BC3): bloque 0→Llave 1, 1→2, … reparto entre numLlaves
     const numLlaves = groqService.getNumLlaves ? groqService.getNumLlaves() : 2;
     const indiceBloque = datos.INDICE_BLOQUE != null ? parseInt(datos.INDICE_BLOQUE, 10) : null;
     const llaveForzada = (promptId === 'arbol_jerarquico_bc3' && Number.isInteger(indiceBloque) && indiceBloque >= 0 && numLlaves >= 2)
       ? ((indiceBloque % numLlaves) + 1)
       : null;
-    const opts = config.groq ? {
-      modelo: modeloElegido,
-      temperatura: config.groq.temperatura,
-      max_tokens: maxTokens,
-      llaveForzada: llaveForzada || undefined,
-      esArbolBC3: promptId === 'arbol_jerarquico_bc3',
-    } : { modelo: modeloElegido, esArbolBC3: promptId === 'arbol_jerarquico_bc3' };
+    const opts = config.groq
+      ? {
+          modelo: modeloElegido,
+          temperatura: config.groq.temperatura,
+          max_tokens: maxTokens,
+          llaveForzada: llaveForzada || undefined,
+          esArbolBC3: promptId === 'arbol_jerarquico_bc3',
+        }
+      : { modelo: modeloElegido, esArbolBC3: promptId === 'arbol_jerarquico_bc3' };
     const text = await groqService.llamarGroq(
       [{ role: 'user', content: prompt }],
       opts
