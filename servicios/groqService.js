@@ -1,20 +1,16 @@
 /**
  * Servicio para llamar a la API de Groq.
- * Si mañana cambias de modelo o proveedor, solo tocas aquí (y config.json).
+ * Usa GROQ_API_KEY; si hay rate limit y está definida GROQ_API_KEY_2, reintenta con esa.
  */
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
-async function llamarGroq(mensajes, opciones = {}) {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) {
-    throw new Error('GROQ_API_KEY no configurada en el servidor');
-  }
+function esRateLimit(err) {
+  const msg = (err && err.message) ? String(err.message) : '';
+  return /rate limit|rate_limit|quota|limit reached/i.test(msg);
+}
 
-  const modelo = opciones.modelo || 'openai/gpt-oss-120b';
-  const temperatura = opciones.temperatura ?? 0.2;
-  const max_tokens = opciones.max_tokens ?? 1024;
-
+async function llamarGroqConClave(apiKey, mensajes, opciones) {
   const response = await fetch(GROQ_URL, {
     method: 'POST',
     headers: {
@@ -22,10 +18,10 @@ async function llamarGroq(mensajes, opciones = {}) {
       'Authorization': `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: modelo,
+      model: opciones.modelo || 'meta-llama/llama-4-maverick-17b-128e-instruct',
       messages: mensajes,
-      temperature: temperatura,
-      max_tokens,
+      temperature: opciones.temperatura ?? 0.2,
+      max_tokens: opciones.max_tokens ?? 1024,
     }),
   });
 
@@ -35,8 +31,41 @@ async function llamarGroq(mensajes, opciones = {}) {
     throw new Error(msg);
   }
 
-  const text = data?.choices?.[0]?.message?.content?.trim() || '';
-  return text;
+  return data?.choices?.[0]?.message?.content?.trim() || '';
+}
+
+async function llamarGroq(mensajes, opciones = {}) {
+  const key1 = process.env.GROQ_API_KEY?.trim();
+  const key2 = process.env.GROQ_API_KEY_2?.trim();
+
+  if (!key1) {
+    throw new Error('GROQ_API_KEY no configurada en el servidor');
+  }
+
+  const opts = {
+    modelo: opciones.modelo || 'meta-llama/llama-4-maverick-17b-128e-instruct',
+    temperatura: opciones.temperatura ?? 0.2,
+    max_tokens: opciones.max_tokens ?? 1024,
+  };
+
+  // Log del modelo usado (útil en Railway para ver qué modelo se está llamando)
+  if (!llamarGroq._loggedModel) {
+    console.log('Groq request usando modelo:', opts.modelo);
+    llamarGroq._loggedModel = true;
+  }
+
+  try {
+    return await llamarGroqConClave(key1, mensajes, opts);
+  } catch (e) {
+    if (esRateLimit(e) && key2) {
+      try {
+        return await llamarGroqConClave(key2, mensajes, opts);
+      } catch (e2) {
+        throw e2;
+      }
+    }
+    throw e;
+  }
 }
 
 module.exports = { llamarGroq };
