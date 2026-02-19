@@ -58,10 +58,17 @@ async function completar(req, res) {
           esArbolBC3: promptId === 'arbol_jerarquico_bc3',
         }
       : { modelo: modeloElegido, esArbolBC3: promptId === 'arbol_jerarquico_bc3' };
+
+    if (promptId === 'arbol_jerarquico_bc3' && Number.isInteger(indiceBloque) && indiceBloque >= 0) {
+      console.log(`[BC3] Bloque ${indiceBloque} - IA trabajando...`);
+    }
     const text = await groqService.llamarGroq(
       [{ role: 'user', content: prompt }],
       opts
     );
+    if (promptId === 'arbol_jerarquico_bc3' && Number.isInteger(indiceBloque) && indiceBloque >= 0) {
+      console.log(`[BC3] Bloque ${indiceBloque} - IA terminó.`);
+    }
     res.json({ text });
   } catch (e) {
     console.error(e);
