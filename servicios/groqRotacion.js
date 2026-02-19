@@ -1,6 +1,6 @@
 /**
  * Rotación de llaves Groq: llave 1 = GROQ_API_KEY, llave 2 = GROQ_API_KEY_2.
- * Cambia al 80% del límite o al fallar. La llave que descansa resetea su contador.
+ * Cambia al 95% del límite (29 de 30 RPM) o al fallar. La llave que descansa resetea su contador.
  *
  * Cómo arrancan y se cuentan las llamadas:
  * - Al arrancar el servidor: llaveActiva = 1, llamadasLlave1 = 0, llamadasLlave2 = 0.
@@ -13,7 +13,7 @@ let llamadasLlave2 = 0;
 let rotacionesRealizadas = 0;
 let ultimaRotacionAt = null;
 
-const LIMITE_ROTACION = 24; // 80% de 30 RPM; ajustar si tu límite es otro (ej. 80 si es 100)
+const LIMITE_ROTACION = 29; // 95% de 30 RPM; con dos llaves no hace falta dejar tanto margen
 
 function getLlaveActiva() {
   return llaveActiva;
