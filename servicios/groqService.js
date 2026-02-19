@@ -11,6 +11,9 @@ const { getLlaveActiva, cambiarLlave, registrarLlamada } = require('./groqRotaci
 /** Segundos de espera antes de probar la otra llave (da tiempo a que se reinicie el TPM de la que acabamos de dejar). Variable de entorno: GROQ_ESPERA_ENTRE_LLAVES. */
 const ESPERA_ENTRE_LLAVES_SEGUNDOS = Math.min(60, Math.max(10, parseInt(process.env.GROQ_ESPERA_ENTRE_LLAVES || '20', 10) || 20));
 
+/** Reintentos con la misma llave cuando falla por TPM (esperar X s + reintentar); así el minuto puede pasar antes de cambiar de llave. */
+const MAX_REINTENTOS_TPM_MISMA_LLAVE = 3;
+
 /** Extrae "Inténtelo de nuevo en 18.5625 s" o "try again in 18 seconds" → segundos (entero, máx 30). */
 function parsearRetrySegundos(mensaje) {
   if (!mensaje || typeof mensaje !== 'string') return 0;
@@ -80,6 +83,31 @@ async function llamarGroq(mensajes, opciones = {}) {
     llamarGroq._loggedModel = true;
   }
 
+  // Rotación por bloque (árbol BC3): la app envía INDICE_BLOQUE; usamos esa llave solo para esta petición, sin tocar contadores.
+  if (tieneDos && (opciones.llaveForzada === 1 || opciones.llaveForzada === 2)) {
+    const apiKey = opciones.llaveForzada === 1 ? key1 : key2;
+    let lastRetry = 0;
+    let ultimoError = null;
+    for (let r = 0; r < MAX_REINTENTOS_TPM_MISMA_LLAVE; r++) {
+      try {
+        const resultado = await llamarGroqConClave(apiKey, mensajes, opts);
+        return resultado;
+      } catch (e) {
+        ultimoError = e;
+        const msg = e?.message || '';
+        const segundos = parsearRetrySegundos(msg);
+        if (segundos > 0 && esRateLimit(msg)) {
+          lastRetry = segundos;
+          console.warn('[Groq] Bloque llave', opciones.llaveForzada, 'límite TPM; esperando', segundos, 's reintento', r + 1, '/', MAX_REINTENTOS_TPM_MISMA_LLAVE);
+          await sleep(segundos * 1000);
+        } else {
+          throw e;
+        }
+      }
+    }
+    throw new Error((ultimoError?.message || 'TPM') + (lastRetry ? ` Inténtelo de nuevo en ${lastRetry} s.` : ''));
+  }
+
   let lastRetrySeconds = 0;
   for (let intento = 0; intento < (tieneDos ? 2 : 1); intento++) {
     const apiKey = tieneDos ? getApiKey(key1, key2) : keyPrincipal;
@@ -90,23 +118,35 @@ async function llamarGroq(mensajes, opciones = {}) {
       return resultado;
     } catch (e) {
       const msg = e?.message || '';
-      const segundos = parsearRetrySegundos(msg);
+      let segundos = parsearRetrySegundos(msg);
       if (segundos > 0 && esRateLimit(msg)) {
         lastRetrySeconds = segundos;
-        console.warn('[Groq] Llave', getLlaveActiva(), 'límite TPM; esperando', segundos, 's antes de reintentar…');
-        await sleep(segundos * 1000);
-        try {
-          const resultado = await llamarGroqConClave(apiKey, mensajes, opts);
-          if (tieneDos) registrarLlamada();
-          return resultado;
-        } catch (e2) {
-          if (tieneDos) {
-            console.warn('[Groq] Llave', getLlaveActiva(), 'falló de nuevo; esperando', ESPERA_ENTRE_LLAVES_SEGUNDOS, 's antes de cambiar de llave…');
-            await sleep(ESPERA_ENTRE_LLAVES_SEGUNDOS * 1000);
-            cambiarLlave();
-          } else {
-            throw new Error(msg + (segundos ? ` Inténtelo de nuevo en ${segundos} s.` : ''));
+        let ultimoError = e;
+        for (let reintento = 0; reintento < MAX_REINTENTOS_TPM_MISMA_LLAVE; reintento++) {
+          console.warn('[Groq] Llave', getLlaveActiva(), 'límite TPM; esperando', segundos, 's antes de reintentar', reintento + 1, '/', MAX_REINTENTOS_TPM_MISMA_LLAVE, '…');
+          await sleep(segundos * 1000);
+          try {
+            const resultado = await llamarGroqConClave(apiKey, mensajes, opts);
+            if (tieneDos) registrarLlamada();
+            return resultado;
+          } catch (e2) {
+            ultimoError = e2;
+            const msg2 = e2?.message || '';
+            const seg2 = parsearRetrySegundos(msg2);
+            if (seg2 > 0 && esRateLimit(msg2)) {
+              segundos = seg2;
+              lastRetrySeconds = segundos;
+            } else {
+              break;
+            }
           }
+        }
+        if (tieneDos) {
+          console.warn('[Groq] Llave', getLlaveActiva(), 'falló tras', MAX_REINTENTOS_TPM_MISMA_LLAVE, 'reintentos; esperando', ESPERA_ENTRE_LLAVES_SEGUNDOS, 's antes de cambiar de llave…');
+          await sleep(ESPERA_ENTRE_LLAVES_SEGUNDOS * 1000);
+          cambiarLlave();
+        } else {
+          throw new Error((ultimoError?.message || msg) + (lastRetrySeconds ? ` Inténtelo de nuevo en ${lastRetrySeconds} s.` : ''));
         }
       } else {
         if (tieneDos) {

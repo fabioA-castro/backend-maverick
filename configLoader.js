@@ -12,7 +12,7 @@ let config = {
     modelo: 'openai/gpt-oss-120b',
     temperatura: 0.2,
     max_tokens: 4096,
-    max_tokens_arbol_bc3: 8192, // respuestas largas por chunk; evita truncado JSON
+    max_tokens_arbol_bc3: 4096, // limita tokens de salida por petición para no disparar el TPM (límite 8K/min); la app recupera JSON truncado
   },
   modo_desarrollo: false,
 };
