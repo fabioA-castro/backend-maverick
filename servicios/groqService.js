@@ -1,13 +1,12 @@
 /**
  * Servicio para llamar a la API de Groq con 1 a 4 llaves.
  * - Una llave: siempre esa.
- * - Dos llaves: rotación por groqRotacion (95%) o por bloque (árbol BC3).
+ * - Dos, tres o cuatro llaves: reparto por turno (round-robin); el día se reparte entre las N. TPD → siguiente llave; TPM → esperar y misma llave.
  * - Tres o cuatro llaves: reparto por bloque (árbol) y round-robin en el resto; si una falla (TPD/TPM) se prueba la siguiente.
  * La app Android no se entera; Railway/backend lo resuelve.
  */
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const { getLlaveActiva, cambiarLlave, registrarLlamada } = require('./groqRotacion');
 
 /** Máximo de llaves. 1: CLAVE_API_GROQ_2; 2: GROQ_API_KEY o "CLAVE DE API DE GROQ"; 3: GROQ_MODELO_1/GROQ_API_KEY_3; 4: GROQ_API_KEY_4. */
 const MAX_LLAVES = 4;
@@ -93,10 +92,6 @@ async function llamarGroqConClave(apiKey, mensajes, opciones) {
   return data?.choices?.[0]?.message?.content?.trim() || '';
 }
 
-function getApiKey(key1, key2) {
-  return getLlaveActiva() === 1 ? key1 : key2;
-}
-
 async function llamarGroq(mensajes, opciones = {}) {
   let keys = obtenerLlaves();
   const llaveSoloBC3 = getLlaveSoloBC3();
@@ -112,7 +107,6 @@ async function llamarGroq(mensajes, opciones = {}) {
   }
   const keyPrincipal = keys[0];
   const tieneDos = numKeys >= 2;
-  const tieneVarias = numKeys > 2;
 
   // Única declaración de opts en esta función (evitar duplicado que provoca SyntaxError en producción).
   const opts = {
@@ -220,8 +214,8 @@ async function llamarGroq(mensajes, opciones = {}) {
     throw new Error((ultimoE?.message || '') + (lastRetry ? ` Inténtelo de nuevo en ${lastRetry} s.` : ''));
   }
 
-  if (tieneVarias) {
-    // 3 o 4 llaves: round-robin; en fallo probar las siguientes.
+  // 2, 3 o 4 llaves: reparto por turno (round-robin). El día se reparte entre las que tengas.
+  if (tieneDos) {
     let ultimoErr = null;
     for (let i = 0; i < numKeys; i++) {
       const idx = (roundRobinIndex + i) % numKeys;
@@ -233,9 +227,13 @@ async function llamarGroq(mensajes, opciones = {}) {
       } catch (e) {
         ultimoErr = e;
         const msg = e?.message || '';
-        if (esTPD(msg)) continue;
+        if (esTPD(msg)) {
+          console.warn('[Groq] Llave', idx + 1, 'cupo diario (TPD) agotado; probando siguiente.');
+          continue;
+        }
         const seg = parsearRetrySegundos(msg);
         if (seg > 0 && esRateLimit(msg)) {
+          console.warn('[Groq] Llave', idx + 1, 'límite TPM; esperando', seg, 's (reintento misma llave).');
           await sleep(seg * 1000);
           try {
             const resultado = await llamarGroqConClave(apiKey, mensajes, opts);
@@ -247,63 +245,6 @@ async function llamarGroq(mensajes, opciones = {}) {
     }
     throw new Error((ultimoErr?.message || 'Todas las llaves fallaron.') + '');
   }
-
-  const key1 = keys[0];
-  const key2 = keys[1];
-  let lastRetrySeconds = 0;
-  for (let intento = 0; intento < 2; intento++) {
-    const apiKey = getApiKey(key1, key2);
-    if (!apiKey) continue;
-    try {
-      const resultado = await llamarGroqConClave(apiKey, mensajes, opts);
-      if (tieneDos) registrarLlamada();
-      return resultado;
-    } catch (e) {
-      const msg = e?.message || '';
-      let segundos = parsearRetrySegundos(msg);
-      if (segundos > 0 && esRateLimit(msg)) {
-        lastRetrySeconds = segundos;
-        let ultimoError = e;
-        for (let reintento = 0; reintento < MAX_REINTENTOS_TPM_MISMA_LLAVE; reintento++) {
-          console.warn('[Groq] Llave', getLlaveActiva(), 'límite TPM; esperando', segundos, 's antes de reintentar', reintento + 1, '/', MAX_REINTENTOS_TPM_MISMA_LLAVE, '…');
-          await sleep(segundos * 1000);
-          try {
-            const resultado = await llamarGroqConClave(apiKey, mensajes, opts);
-            if (tieneDos) registrarLlamada();
-            return resultado;
-          } catch (e2) {
-            ultimoError = e2;
-            const msg2 = e2?.message || '';
-            const seg2 = parsearRetrySegundos(msg2);
-            if (seg2 > 0 && esRateLimit(msg2)) {
-              segundos = seg2;
-              lastRetrySeconds = segundos;
-            } else {
-              break;
-            }
-          }
-        }
-        if (tieneDos) {
-          console.warn('[Groq] Llave', getLlaveActiva(), 'falló tras', MAX_REINTENTOS_TPM_MISMA_LLAVE, 'reintentos; esperando', ESPERA_ENTRE_LLAVES_SEGUNDOS, 's antes de cambiar de llave…');
-          await sleep(ESPERA_ENTRE_LLAVES_SEGUNDOS * 1000);
-          cambiarLlave();
-        } else {
-          throw new Error((ultimoError?.message || msg) + (lastRetrySeconds ? ` Inténtelo de nuevo en ${lastRetrySeconds} s.` : ''));
-        }
-      } else {
-        if (tieneDos) {
-          console.warn('[Groq] Llave', getLlaveActiva(), 'falló; esperando', ESPERA_ENTRE_LLAVES_SEGUNDOS, 's antes de cambiar de llave…');
-          await sleep(ESPERA_ENTRE_LLAVES_SEGUNDOS * 1000);
-          cambiarLlave();
-        } else {
-          throw e;
-        }
-      }
-    }
-  }
-
-  const retryText = lastRetrySeconds > 0 ? ` Inténtelo de nuevo en ${lastRetrySeconds} s.` : '';
-  throw new Error('Ambas llaves fallaron.' + retryText);
 }
 
 module.exports = { llamarGroq, getNumLlaves };

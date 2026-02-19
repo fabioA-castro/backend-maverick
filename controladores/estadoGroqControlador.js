@@ -10,7 +10,7 @@ function estadoGroq(req, res) {
   try {
     const estado = getEstadoRotacion();
     const n = getNumLlaves();
-    if (n > 2) estado.numLlaves = n;
+    if (n >= 2) estado.numLlaves = n;
     res.json(estado);
   } catch (e) {
     res.status(500).json({ error: e.message || 'Error al leer estado Groq' });

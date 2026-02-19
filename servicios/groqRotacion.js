@@ -1,11 +1,9 @@
 /**
- * Rotación de llaves Groq: llave 1 = GROQ_API_KEY, llave 2 = GROQ_API_KEY_2.
- * Cambia al 95% del límite (29 de 30 RPM) o al fallar. La llave que descansa resetea su contador.
+ * Rotación de llaves Groq (2 llaves): solo por cupo diario (TPD).
+ * No se rota por límite por minuto (TPM): ante un pico de TPM se espera y se reintenta con la misma llave.
+ * Solo cuando una llave agota su cupo del día (TPD) se cambia a la otra.
  *
- * Cómo arrancan y se cuentan las llamadas:
- * - Al arrancar el servidor: llaveActiva = 1, llamadasLlave1 = 0, llamadasLlave2 = 0.
- * - Solo se cuenta una llamada cuando la petición a Groq tiene éxito (registrarLlamada() se llama en groqService solo tras respuesta OK).
- * - Cuando una llave pasa a activa, su contador ya está en 0 (se puso a 0 al salir de activa la última vez). Al cambiar de llave se resetea la que deja de usarse, no la que entra.
+ * Contadores: se actualizan en éxito (registrarLlamada) solo para GET /estado-groq. No disparan rotación.
  */
 let llaveActiva = 1;
 let llamadasLlave1 = 0;
@@ -13,20 +11,18 @@ let llamadasLlave2 = 0;
 let rotacionesRealizadas = 0;
 let ultimaRotacionAt = null;
 
-const LIMITE_ROTACION = 29; // 95% de 30 RPM; con dos llaves no hace falta dejar tanto margen
+const LIMITE_ROTACION = null; // Ya no se rota por número de llamadas; solo por TPD (cupo diario)
 
 function getLlaveActiva() {
   return llaveActiva;
 }
 
-/** Se llama solo cuando una petición a Groq termina con éxito. Suma 1 al contador de la llave activa; si llega a LIMITE_ROTACION, cambia de llave. */
+/** Se llama cuando una petición a Groq termina con éxito. Solo actualiza contadores para /estado-groq; no cambia de llave. */
 function registrarLlamada() {
   if (llaveActiva === 1) {
     llamadasLlave1++;
-    if (llamadasLlave1 >= LIMITE_ROTACION) cambiarLlave();
   } else {
     llamadasLlave2++;
-    if (llamadasLlave2 >= LIMITE_ROTACION) cambiarLlave();
   }
 }
 
