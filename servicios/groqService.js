@@ -21,7 +21,7 @@ async function llamarGroqConClave(apiKey, mensajes, opciones) {
       model: opciones.modelo || 'meta-llama/llama-4-maverick-17b-128e-instruct',
       messages: mensajes,
       temperature: opciones.temperatura ?? 0.2,
-      max_tokens: opciones.max_tokens ?? 1024,
+      max_tokens: opciones.max_tokens ?? 4096,
     }),
   });
 
@@ -45,7 +45,7 @@ async function llamarGroq(mensajes, opciones = {}) {
   const opts = {
     modelo: opciones.modelo || 'meta-llama/llama-4-maverick-17b-128e-instruct',
     temperatura: opciones.temperatura ?? 0.2,
-    max_tokens: opciones.max_tokens ?? 1024,
+    max_tokens: opciones.max_tokens ?? 4096,
   };
 
   // Log del modelo usado (útil en Railway para ver qué modelo se está llamando)
