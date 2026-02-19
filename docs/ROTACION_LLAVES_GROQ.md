@@ -14,6 +14,10 @@ En esta carpeta (backend-maverick) está todo lo de rotación de llaves. Nada de
 
 El orden lo define el código: la primera variable = llave 1, la segunda = llave 2.
 
+## Cómo saber si hubo rotación
+
+- **GET /estado-groq** — Devuelve el estado actual: `llaveActiva` (1 o 2), `llamadasLlave1`, `llamadasLlave2`, `rotacionesRealizadas`, `ultimaRotacion` (ISO), `limiteRotacion`. La app Android en Ajustes → "Estado de rotación Groq" llama a esta URL (base del backend + `/estado-groq`) para mostrarlo.
+
 ## Comportamiento
 
 - Evita llegar al 100%: cambia al llegar a `LIMITE_ROTACION` (p. ej. 24 = 80% de 30 RPM).
