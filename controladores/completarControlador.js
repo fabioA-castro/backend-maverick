@@ -38,10 +38,14 @@ async function completar(req, res) {
   try {
     const promptId = req.body?.promptId || null;
     const modeloElegido = seleccionarModelo(promptId, config.groq?.modelo);
+    // Arbol BC3 devuelve JSON grande por chunk; más max_tokens reduce truncado ("Unterminated array")
+    const maxTokens = (promptId === 'arbol_jerarquico_bc3')
+      ? (config.groq?.max_tokens_arbol_bc3 ?? 8192)
+      : (config.groq?.max_tokens ?? 4096);
     const opts = config.groq ? {
       modelo: modeloElegido,
       temperatura: config.groq.temperatura,
-      max_tokens: config.groq.max_tokens,
+      max_tokens: maxTokens,
     } : { modelo: modeloElegido };
     const text = await groqService.llamarGroq(
       [{ role: 'user', content: prompt }],

@@ -8,7 +8,12 @@ const path = require('path');
 const CONFIG_PATH = path.join(__dirname, 'config.json');
 
 let config = {
-  groq: { modelo: 'openai/gpt-oss-120b', temperatura: 0.2, max_tokens: 4096 },
+  groq: {
+    modelo: 'openai/gpt-oss-120b',
+    temperatura: 0.2,
+    max_tokens: 4096,
+    max_tokens_arbol_bc3: 8192, // respuestas largas por chunk; evita truncado JSON
+  },
   modo_desarrollo: false,
 };
 
