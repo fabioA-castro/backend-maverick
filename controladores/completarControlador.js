@@ -8,6 +8,7 @@ const path = require('path');
 const groqService = require('../servicios/groqService');
 const promptsData = require('../data/promptsData');
 const config = require('../configLoader');
+const { seleccionarModelo } = require('../servicios/modeloSelector');
 
 function logError(mensaje, err) {
   try {
@@ -35,11 +36,13 @@ async function completar(req, res) {
   }
 
   try {
+    const promptId = req.body?.promptId || null;
+    const modeloElegido = seleccionarModelo(promptId, config.groq?.modelo);
     const opts = config.groq ? {
-      modelo: config.groq.modelo,
+      modelo: modeloElegido,
       temperatura: config.groq.temperatura,
       max_tokens: config.groq.max_tokens,
-    } : {};
+    } : { modelo: modeloElegido };
     const text = await groqService.llamarGroq(
       [{ role: 'user', content: prompt }],
       opts
