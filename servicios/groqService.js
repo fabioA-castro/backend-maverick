@@ -27,7 +27,14 @@ function parsearRetrySegundos(mensaje) {
 function esRateLimit(mensaje) {
   if (!mensaje || typeof mensaje !== 'string') return false;
   const m = mensaje.toLowerCase();
-  return m.includes('límite de velocidad') || m.includes('rate limit') || m.includes('tokens por minuto') || m.includes('tpm');
+  return m.includes('límite de velocidad') || m.includes('rate limit') || m.includes('tokens por minuto') || m.includes('tpm') || m.includes('tokens per day') || m.includes('tpd');
+}
+
+/** True si el error es por límite de tokens por día (TPD). Con TPD no sirve esperar; hay que usar la otra llave. */
+function esTPD(mensaje) {
+  if (!mensaje || typeof mensaje !== 'string') return false;
+  const m = mensaje.toLowerCase();
+  return m.includes('tokens per day') || m.includes('tokens por día') || m.includes('tpd');
 }
 
 async function sleep(ms) {
@@ -83,18 +90,28 @@ async function llamarGroq(mensajes, opciones = {}) {
     llamarGroq._loggedModel = true;
   }
 
-  // Rotación por bloque (árbol BC3): la app envía INDICE_BLOQUE; usamos esa llave solo para esta petición, sin tocar contadores.
+  // Rotación por bloque (árbol BC3): la app envía INDICE_BLOQUE; usamos esa llave solo para esta petición. Si falla por TPD/TPM, probamos la otra llave.
   if (tieneDos && (opciones.llaveForzada === 1 || opciones.llaveForzada === 2)) {
-    const apiKey = opciones.llaveForzada === 1 ? key1 : key2;
+    const apiKeyPrimera = opciones.llaveForzada === 1 ? key1 : key2;
+    const apiKeyOtra = opciones.llaveForzada === 1 ? key2 : key1;
     let lastRetry = 0;
     let ultimoError = null;
+    // TPD (tokens/día): no sirve esperar; probar la otra llave de inmediato.
     for (let r = 0; r < MAX_REINTENTOS_TPM_MISMA_LLAVE; r++) {
       try {
-        const resultado = await llamarGroqConClave(apiKey, mensajes, opts);
+        const resultado = await llamarGroqConClave(apiKeyPrimera, mensajes, opts);
         return resultado;
       } catch (e) {
         ultimoError = e;
         const msg = e?.message || '';
+        if (esTPD(msg)) {
+          console.warn('[Groq] Bloque llave', opciones.llaveForzada, 'TPD agotado; probando la otra llave…');
+          try {
+            return await llamarGroqConClave(apiKeyOtra, mensajes, opts);
+          } catch (e2) {
+            throw new Error((e2?.message || msg) + ' (ambas llaves sin cupo).');
+          }
+        }
         const segundos = parsearRetrySegundos(msg);
         if (segundos > 0 && esRateLimit(msg)) {
           lastRetry = segundos;
@@ -104,6 +121,13 @@ async function llamarGroq(mensajes, opciones = {}) {
           throw e;
         }
       }
+    }
+    // Tras 3 reintentos TPM con la llave forzada, probar la otra llave una vez.
+    console.warn('[Groq] Bloque llave', opciones.llaveForzada, 'falló tras reintentos; probando la otra llave…');
+    try {
+      return await llamarGroqConClave(apiKeyOtra, mensajes, opts);
+    } catch (e2) {
+      ultimoError = e2;
     }
     throw new Error((ultimoError?.message || 'TPM') + (lastRetry ? ` Inténtelo de nuevo en ${lastRetry} s.` : ''));
   }
