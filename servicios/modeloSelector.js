@@ -21,7 +21,7 @@ function seleccionarModelo(promptId, modeloPorDefecto) {
     case 'analisis_profundo':
       return 'openai/gpt-oss-120b';
     default:
-      return modeloPorDefecto || 'llama3-70b-8192';
+      return modeloPorDefecto || 'openai/gpt-oss-120b';
   }
 }
 

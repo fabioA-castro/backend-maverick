@@ -8,7 +8,7 @@ const path = require('path');
 const CONFIG_PATH = path.join(__dirname, 'config.json');
 
 let config = {
-  groq: { modelo: 'llama3-70b-8192', temperatura: 0.2, max_tokens: 4096 },
+  groq: { modelo: 'openai/gpt-oss-120b', temperatura: 0.2, max_tokens: 4096 },
   modo_desarrollo: false,
 };
 

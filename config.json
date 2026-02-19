@@ -1,1 +1,1 @@
-{"groq":{"modelo":"llama3-70b-8192","temperatura":0.2,"max_tokens":4096},"modo_desarrollo":false}
+{"groq":{"modelo":"openai/gpt-oss-120b","temperatura":0.2,"max_tokens":4096},"modo_desarrollo":false}

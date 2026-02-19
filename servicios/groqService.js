@@ -1,11 +1,14 @@
 /**
- * Servicio para llamar a la API de Groq con fallback automático entre llaves.
- * 1) Intenta con la llave principal (GROQ_API_KEY).
- * 2) Si falla por cualquier motivo (rate limit, sin saldo, error), usa la llave de respaldo (GROQ_API_KEY_2).
+ * Servicio para llamar a la API de Groq con dos llaves (como dos pilas: una trabaja, la otra descansa).
+ * - Si hay dos llaves: se alternan por petición (una atiende, la otra entra en reposo y recupera cuota).
+ * - Si la llave que toca trabajar falla (límite, error), la que estaba en reposo toma el relevo.
  * La app Android no se entera; Railway/backend lo resuelve.
  */
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
+
+/** Alternancia: petición par → key1, impar → key2 (reparto de carga). */
+let _contadorPeticiones = 0;
 
 async function llamarGroqConClave(apiKey, mensajes, opciones) {
   const response = await fetch(GROQ_URL, {
@@ -15,7 +18,7 @@ async function llamarGroqConClave(apiKey, mensajes, opciones) {
       'Authorization': `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: opciones.modelo || 'llama3-70b-8192',
+      model: opciones.modelo || 'openai/gpt-oss-120b',
       messages: mensajes,
       temperature: opciones.temperatura ?? 0.2,
       max_tokens: opciones.max_tokens ?? 4096,
@@ -34,13 +37,14 @@ async function llamarGroqConClave(apiKey, mensajes, opciones) {
 async function llamarGroq(mensajes, opciones = {}) {
   const key1 = process.env.GROQ_API_KEY?.trim();
   const key2 = (process.env.GROQ_API_KEY_2 || process.env.CLAVE_DE_API_DE_GROQ_2 || process.env['CLAVE DE API DE GROQ 2'] || '').trim();
+  const tieneDos = !!(key1 && key2);
   const keyPrincipal = key1 || key2;
   if (!keyPrincipal) {
     throw new Error('GROQ_API_KEY no configurada en el servidor');
   }
 
   const opts = {
-    modelo: opciones.modelo || 'llama3-70b-8192',
+    modelo: opciones.modelo || 'openai/gpt-oss-120b',
     temperatura: opciones.temperatura ?? 0.2,
     max_tokens: opciones.max_tokens ?? 4096,
   };
@@ -50,13 +54,21 @@ async function llamarGroq(mensajes, opciones = {}) {
     llamarGroq._loggedModel = true;
   }
 
+  // Repartir carga: alternar llave (mientras una trabaja la otra descansa)
+  let keyElegida = keyPrincipal;
+  if (tieneDos) {
+    _contadorPeticiones++;
+    keyElegida = _contadorPeticiones % 2 === 1 ? key1 : key2;
+  }
+
   try {
-    return await llamarGroqConClave(keyPrincipal, mensajes, opts);
+    return await llamarGroqConClave(keyElegida, mensajes, opts);
   } catch (e) {
-    if (key1 && key2 && keyPrincipal === key1) {
-      console.log('La API con la llave principal falló, usando la llave de respaldo...', e?.message || e);
+    if (tieneDos) {
+      const laOtra = keyElegida === key1 ? key2 : key1;
+      console.log('La llave en uso falló, la que estaba en reposo toma el relevo...', e?.message || e);
       try {
-        return await llamarGroqConClave(key2, mensajes, opts);
+        return await llamarGroqConClave(laOtra, mensajes, opts);
       } catch (e2) {
         throw e2;
       }
