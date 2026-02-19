@@ -19,6 +19,9 @@ if (!fs.existsSync(configPath)) console.warn('Aviso: config.json no encontrado; 
 if (!fs.existsSync(promptsDir)) console.warn('Aviso: carpeta prompts/ no encontrada; se usará prompts.json si existe.');
 const numPrompts = promptsData.getList().length;
 console.log(`Config cargada. Prompts cargados: ${numPrompts}`);
+const groqService = require('./servicios/groqService');
+const numLlaves = groqService.getNumLlaves ? groqService.getNumLlaves() : 0;
+console.log(`Llaves Groq configuradas: ${numLlaves} (1: CLAVE_API_GROQ_2/GROQ_API_KEY_2, 2: GROQ_API_KEY, 3: GROQ_MODELO_1/GROQ_API_KEY_3, 4: GROQ_API_KEY_4)`);
 
 try { fs.mkdirSync(path.join(__dirname, 'logs'), { recursive: true }); } catch (_) {}
 

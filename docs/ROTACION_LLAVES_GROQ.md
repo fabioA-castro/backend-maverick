@@ -12,8 +12,8 @@ En esta carpeta (backend-maverick) está todo lo de rotación de llaves. Nada de
 Puedes configurar **hasta 4 llaves** (más llaves = más cupo repartido):
 
 - **Llave 1** → `CLAVE_API_GROQ_2` o `GROQ_API_KEY_2` (o `CLAVE_DE_API_DE_GROQ_2`).
-- **Llave 2** → `GROQ_API_KEY`.
-- **Llave 3** (opcional) → `GROQ_API_KEY_3`.
+- **Llave 2** → `GROQ_API_KEY` o `CLAVE DE API DE GROQ` (nombre con espacios, como en Railway).
+- **Llave 3** (opcional) → `GROQ_MODELO_1` o `GROQ_API_KEY_3`.
 - **Llave 4** (opcional) → `GROQ_API_KEY_4`.
 
 **Tiempo de espera entre llaves** (opcional) → `GROQ_ESPERA_ENTRE_LLAVES` = segundos antes de probar otra llave tras un fallo (por defecto 20).

@@ -9,7 +9,7 @@
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const { getLlaveActiva, cambiarLlave, registrarLlamada } = require('./groqRotacion');
 
-/** Máximo de llaves soportadas (variables GROQ_API_KEY, GROQ_API_KEY_2, GROQ_API_KEY_3, GROQ_API_KEY_4; llave 1 también CLAVE_API_GROQ_2). */
+/** Máximo de llaves. 1: CLAVE_API_GROQ_2; 2: GROQ_API_KEY o "CLAVE DE API DE GROQ"; 3: GROQ_MODELO_1/GROQ_API_KEY_3; 4: GROQ_API_KEY_4. */
 const MAX_LLAVES = 4;
 
 /** Índice para round-robin cuando hay 3+ llaves (no usamos groqRotacion). */
@@ -18,8 +18,8 @@ let roundRobinIndex = 0;
 /** Construye el array de llaves desde env. [0]=llave1, [1]=llave2, etc. */
 function obtenerLlaves() {
   const key1 = (process.env.CLAVE_API_GROQ_2 || process.env.GROQ_API_KEY_2 || process.env.CLAVE_DE_API_DE_GROQ_2 || process.env['CLAVE DE API DE GROQ 2'] || '').trim();
-  const key2 = (process.env.GROQ_API_KEY || '').trim();
-  const key3 = (process.env.GROQ_API_KEY_3 || '').trim();
+  const key2 = (process.env.GROQ_API_KEY || process.env['CLAVE DE API DE GROQ'] || '').trim();
+  const key3 = (process.env.GROQ_MODELO_1 || process.env.GROQ_API_KEY_3 || '').trim();
   const key4 = (process.env.GROQ_API_KEY_4 || '').trim();
   return [key1, key2, key3, key4].filter(Boolean);
 }
