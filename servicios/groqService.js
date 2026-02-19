@@ -148,12 +148,6 @@ async function llamarGroq(mensajes, opciones = {}) {
     }
   }
 
-  const opts = {
-    modelo: opciones.modelo || 'openai/gpt-oss-120b',
-    temperatura: opciones.temperatura ?? 0.2,
-    max_tokens: opciones.max_tokens ?? 4096,
-  };
-
   if (!llamarGroq._loggedModel) {
     console.log('Groq request usando modelo:', opts.modelo);
     llamarGroq._loggedModel = true;
