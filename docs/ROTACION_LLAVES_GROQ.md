@@ -9,11 +9,18 @@ En esta carpeta (backend-maverick) está todo lo de rotación de llaves. Nada de
 
 ## Variables de entorno
 
-- **Llave 1** (cuenta principal / nueva) → `CLAVE_API_GROQ_2` o `GROQ_API_KEY_2` (o `CLAVE_DE_API_DE_GROQ_2`) — la que tiene "clave" en el nombre.
-- **Llave 2** (cuenta reserva / antigua) → `GROQ_API_KEY` — sin "clave" en el nombre.
-- **Tiempo de espera entre llaves** (opcional) → `GROQ_ESPERA_ENTRE_LLAVES` = segundos que el backend espera antes de probar la otra llave tras un fallo (por defecto 20). Así el TPM de la llave que acabamos de dejar tiene tiempo a reiniciarse y no se queman las dos en el mismo minuto.
+Puedes configurar **hasta 4 llaves** (más llaves = más cupo repartido):
 
-El backend acepta cualquiera de esos nombres para la segunda variable; así puedes usar `CLAVE_API_GROQ_2` en el editor de variables y se usará como llave 1 (cuenta nueva).
+- **Llave 1** → `CLAVE_API_GROQ_2` o `GROQ_API_KEY_2` (o `CLAVE_DE_API_DE_GROQ_2`).
+- **Llave 2** → `GROQ_API_KEY`.
+- **Llave 3** (opcional) → `GROQ_API_KEY_3`.
+- **Llave 4** (opcional) → `GROQ_API_KEY_4`.
+
+**Tiempo de espera entre llaves** (opcional) → `GROQ_ESPERA_ENTRE_LLAVES` = segundos antes de probar otra llave tras un fallo (por defecto 20).
+
+**Una llave solo para BC3** (opcional) → `GROQ_LLAVE_SOLO_BC3` = 1, 2, 3 o 4. Esa llave se usa **únicamente** para "Crear árbol con IA" (árbol jerárquico BC3). El resto de peticiones (variantes, otros prompts) usan solo las otras llaves. Así una cuenta puede dedicarse solo a descargar el BC3 completo sin compartir cupo con el resto de la app.
+
+Con 2 llaves: rotación al 95% (29 llamadas) o al fallar; con 3 o 4 llaves: reparto por bloque en árbol BC3 (bloque % N) y round-robin en el resto de peticiones.
 
 ## Cómo saber si hubo rotación
 
