@@ -114,6 +114,7 @@ async function llamarGroq(mensajes, opciones = {}) {
   const tieneDos = numKeys >= 2;
   const tieneVarias = numKeys > 2;
 
+  // Única declaración de opts en esta función (evitar duplicado que provoca SyntaxError en producción).
   const opts = {
     modelo: opciones.modelo || 'openai/gpt-oss-120b',
     temperatura: opciones.temperatura ?? 0.2,
