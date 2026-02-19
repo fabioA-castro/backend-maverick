@@ -36,9 +36,11 @@ async function llamarGroqConClave(apiKey, mensajes, opciones) {
 
 async function llamarGroq(mensajes, opciones = {}) {
   const key1 = process.env.GROQ_API_KEY?.trim();
-  const key2 = process.env.GROQ_API_KEY_2?.trim();
-
-  if (!key1) {
+  // Segunda llave: nombre en inglés o Railway con espacios → CLAVE_DE_API_DE_GROQ_2
+  const key2 = (process.env.GROQ_API_KEY_2 || process.env.CLAVE_DE_API_DE_GROQ_2 || process.env['CLAVE DE API DE GROQ 2'] || '').trim();
+  // Si este servidor solo tiene "llave 2" (ej. backend Copia), usarla como principal
+  const keyPrincipal = key1 || key2;
+  if (!keyPrincipal) {
     throw new Error('GROQ_API_KEY no configurada en el servidor');
   }
 
@@ -55,9 +57,10 @@ async function llamarGroq(mensajes, opciones = {}) {
   }
 
   try {
-    return await llamarGroqConClave(key1, mensajes, opts);
+    return await llamarGroqConClave(keyPrincipal, mensajes, opts);
   } catch (e) {
-    if (esRateLimit(e) && key2) {
+    // Fallback a la otra llave solo si tenemos las dos y fue rate limit
+    if (esRateLimit(e) && key1 && key2 && keyPrincipal === key1) {
       try {
         return await llamarGroqConClave(key2, mensajes, opts);
       } catch (e2) {
