@@ -1,6 +1,11 @@
 /**
  * Rotación de llaves Groq: llave 1 = GROQ_API_KEY, llave 2 = GROQ_API_KEY_2.
  * Cambia al 80% del límite o al fallar. La llave que descansa resetea su contador.
+ *
+ * Cómo arrancan y se cuentan las llamadas:
+ * - Al arrancar el servidor: llaveActiva = 1, llamadasLlave1 = 0, llamadasLlave2 = 0.
+ * - Solo se cuenta una llamada cuando la petición a Groq tiene éxito (registrarLlamada() se llama en groqService solo tras respuesta OK).
+ * - Cuando una llave pasa a activa, su contador ya está en 0 (se puso a 0 al salir de activa la última vez). Al cambiar de llave se resetea la que deja de usarse, no la que entra.
  */
 let llaveActiva = 1;
 let llamadasLlave1 = 0;
@@ -14,6 +19,7 @@ function getLlaveActiva() {
   return llaveActiva;
 }
 
+/** Se llama solo cuando una petición a Groq termina con éxito. Suma 1 al contador de la llave activa; si llega a LIMITE_ROTACION, cambia de llave. */
 function registrarLlamada() {
   if (llaveActiva === 1) {
     llamadasLlave1++;
@@ -24,6 +30,7 @@ function registrarLlamada() {
   }
 }
 
+/** Cambia la llave activa (1↔2) y pone a 0 el contador de la llave que deja de usarse. La que entra ya tenía 0 desde la última vez que salió. */
 function cambiarLlave() {
   llaveActiva = llaveActiva === 1 ? 2 : 1;
   rotacionesRealizadas++;

@@ -116,8 +116,8 @@ function updatePrompt(id, template) {
   }
 }
 
-// Límite para BC3 en arbol_jerarquico_bc3: modelo Groq 8000 tokens; 10k caracteres/parte deja margen
-const MAX_BC3_CHARS_ARBOL = 10000;
+// Límite para BC3 en arbol_jerarquico_bc3: chunks más pequeños = menos tokens/petición → menos TPM (tokens/min). App envía ~3500; aquí 5000 por si llega más.
+const MAX_BC3_CHARS_ARBOL = 5000;
 
 function truncarBc3PorLinea(texto, maxChars) {
   if (typeof texto !== 'string' || texto.length <= maxChars) return texto;

@@ -8,6 +8,9 @@
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const { getLlaveActiva, cambiarLlave, registrarLlamada } = require('./groqRotacion');
 
+/** Segundos de espera antes de probar la otra llave (da tiempo a que se reinicie el TPM de la que acabamos de dejar). Variable de entorno: GROQ_ESPERA_ENTRE_LLAVES. */
+const ESPERA_ENTRE_LLAVES_SEGUNDOS = Math.min(60, Math.max(10, parseInt(process.env.GROQ_ESPERA_ENTRE_LLAVES || '20', 10) || 20));
+
 /** Extrae "Inténtelo de nuevo en 18.5625 s" o "try again in 18 seconds" → segundos (entero, máx 30). */
 function parsearRetrySegundos(mensaje) {
   if (!mensaje || typeof mensaje !== 'string') return 0;
@@ -98,7 +101,8 @@ async function llamarGroq(mensajes, opciones = {}) {
           return resultado;
         } catch (e2) {
           if (tieneDos) {
-            console.warn('[Groq] Llave', getLlaveActiva(), 'falló de nuevo:', e2?.message || e2);
+            console.warn('[Groq] Llave', getLlaveActiva(), 'falló de nuevo; esperando', ESPERA_ENTRE_LLAVES_SEGUNDOS, 's antes de cambiar de llave…');
+            await sleep(ESPERA_ENTRE_LLAVES_SEGUNDOS * 1000);
             cambiarLlave();
           } else {
             throw new Error(msg + (segundos ? ` Inténtelo de nuevo en ${segundos} s.` : ''));
@@ -106,7 +110,8 @@ async function llamarGroq(mensajes, opciones = {}) {
         }
       } else {
         if (tieneDos) {
-          console.warn('[Groq] Llave', getLlaveActiva(), 'falló:', msg);
+          console.warn('[Groq] Llave', getLlaveActiva(), 'falló; esperando', ESPERA_ENTRE_LLAVES_SEGUNDOS, 's antes de cambiar de llave…');
+          await sleep(ESPERA_ENTRE_LLAVES_SEGUNDOS * 1000);
           cambiarLlave();
         } else {
           throw e;

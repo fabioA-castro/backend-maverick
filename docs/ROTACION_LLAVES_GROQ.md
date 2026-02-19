@@ -11,6 +11,7 @@ En esta carpeta (backend-maverick) está todo lo de rotación de llaves. Nada de
 
 - **Llave 1** (cuenta principal / nueva) → `CLAVE_API_GROQ_2` o `GROQ_API_KEY_2` (o `CLAVE_DE_API_DE_GROQ_2`) — la que tiene "clave" en el nombre.
 - **Llave 2** (cuenta reserva / antigua) → `GROQ_API_KEY` — sin "clave" en el nombre.
+- **Tiempo de espera entre llaves** (opcional) → `GROQ_ESPERA_ENTRE_LLAVES` = segundos que el backend espera antes de probar la otra llave tras un fallo (por defecto 20). Así el TPM de la llave que acabamos de dejar tiene tiempo a reiniciarse y no se queman las dos en el mismo minuto.
 
 El backend acepta cualquiera de esos nombres para la segunda variable; así puedes usar `CLAVE_API_GROQ_2` en el editor de variables y se usará como llave 1 (cuenta nueva).
 
