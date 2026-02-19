@@ -8,6 +8,26 @@
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const { getLlaveActiva, cambiarLlave, registrarLlamada } = require('./groqRotacion');
 
+/** Extrae "Inténtelo de nuevo en 18.5625 s" o "try again in 18 seconds" → segundos (entero, máx 30). */
+function parsearRetrySegundos(mensaje) {
+  if (!mensaje || typeof mensaje !== 'string') return 0;
+  const en = /try again in (\d+(?:\.\d+)?)\s*(?:s\.?|seconds?)/i.exec(mensaje);
+  if (en) return Math.min(30, Math.max(1, Math.ceil(parseFloat(en[1]))));
+  const es = /(?:inténtelo de nuevo|intentelo de nuevo)\s+en\s+(\d+(?:[.,]\d+)?)\s*(?:s\.?|segundos?)/i.exec(mensaje);
+  if (es) return Math.min(30, Math.max(1, Math.ceil(parseFloat(es[1].replace(',', '.')))));
+  return 0;
+}
+
+function esRateLimit(mensaje) {
+  if (!mensaje || typeof mensaje !== 'string') return false;
+  const m = mensaje.toLowerCase();
+  return m.includes('límite de velocidad') || m.includes('rate limit') || m.includes('tokens por minuto') || m.includes('tpm');
+}
+
+async function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
 async function llamarGroqConClave(apiKey, mensajes, opciones) {
   const response = await fetch(GROQ_URL, {
     method: 'POST',
@@ -57,6 +77,7 @@ async function llamarGroq(mensajes, opciones = {}) {
     llamarGroq._loggedModel = true;
   }
 
+  let lastRetrySeconds = 0;
   for (let intento = 0; intento < (tieneDos ? 2 : 1); intento++) {
     const apiKey = tieneDos ? getApiKey(key1, key2) : keyPrincipal;
     if (!apiKey) continue;
@@ -65,16 +86,37 @@ async function llamarGroq(mensajes, opciones = {}) {
       if (tieneDos) registrarLlamada();
       return resultado;
     } catch (e) {
-      if (tieneDos) {
-        console.warn('[Groq] Llave', getLlaveActiva(), 'falló:', e?.message || e);
-        cambiarLlave();
+      const msg = e?.message || '';
+      const segundos = parsearRetrySegundos(msg);
+      if (segundos > 0 && esRateLimit(msg)) {
+        lastRetrySeconds = segundos;
+        console.warn('[Groq] Llave', getLlaveActiva(), 'límite TPM; esperando', segundos, 's antes de reintentar…');
+        await sleep(segundos * 1000);
+        try {
+          const resultado = await llamarGroqConClave(apiKey, mensajes, opts);
+          if (tieneDos) registrarLlamada();
+          return resultado;
+        } catch (e2) {
+          if (tieneDos) {
+            console.warn('[Groq] Llave', getLlaveActiva(), 'falló de nuevo:', e2?.message || e2);
+            cambiarLlave();
+          } else {
+            throw new Error(msg + (segundos ? ` Inténtelo de nuevo en ${segundos} s.` : ''));
+          }
+        }
       } else {
-        throw e;
+        if (tieneDos) {
+          console.warn('[Groq] Llave', getLlaveActiva(), 'falló:', msg);
+          cambiarLlave();
+        } else {
+          throw e;
+        }
       }
     }
   }
 
-  throw new Error('Ambas llaves fallaron.');
+  const retryText = lastRetrySeconds > 0 ? ` Inténtelo de nuevo en ${lastRetrySeconds} s.` : '';
+  throw new Error('Ambas llaves fallaron.' + retryText);
 }
 
 module.exports = { llamarGroq };
