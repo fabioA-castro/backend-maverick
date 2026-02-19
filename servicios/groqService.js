@@ -1,14 +1,12 @@
 /**
  * Servicio para llamar a la API de Groq con dos llaves (como dos pilas: una trabaja, la otra descansa).
- * - Si hay dos llaves: se alternan por petición (una atiende, la otra entra en reposo y recupera cuota).
- * - Si la llave que toca trabajar falla (límite, error), la que estaba en reposo toma el relevo.
+ * - Si hay dos llaves: rotación al 80% (groqRotacion) o al fallar; la que descansa resetea contador.
+ * - Si solo hay una llave: se usa siempre esa.
  * La app Android no se entera; Railway/backend lo resuelve.
  */
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
-
-/** Alternancia: petición par → key1, impar → key2 (reparto de carga). */
-let _contadorPeticiones = 0;
+const { getLlaveActiva, cambiarLlave, registrarLlamada } = require('./groqRotacion');
 
 async function llamarGroqConClave(apiKey, mensajes, opciones) {
   const response = await fetch(GROQ_URL, {
@@ -34,6 +32,10 @@ async function llamarGroqConClave(apiKey, mensajes, opciones) {
   return data?.choices?.[0]?.message?.content?.trim() || '';
 }
 
+function getApiKey(key1, key2) {
+  return getLlaveActiva() === 1 ? key1 : key2;
+}
+
 async function llamarGroq(mensajes, opciones = {}) {
   const key1 = process.env.GROQ_API_KEY?.trim();
   const key2 = (process.env.GROQ_API_KEY_2 || process.env.CLAVE_DE_API_DE_GROQ_2 || process.env['CLAVE DE API DE GROQ 2'] || '').trim();
@@ -54,27 +56,24 @@ async function llamarGroq(mensajes, opciones = {}) {
     llamarGroq._loggedModel = true;
   }
 
-  // Repartir carga: alternar llave (mientras una trabaja la otra descansa)
-  let keyElegida = keyPrincipal;
-  if (tieneDos) {
-    _contadorPeticiones++;
-    keyElegida = _contadorPeticiones % 2 === 1 ? key1 : key2;
-  }
-
-  try {
-    return await llamarGroqConClave(keyElegida, mensajes, opts);
-  } catch (e) {
-    if (tieneDos) {
-      const laOtra = keyElegida === key1 ? key2 : key1;
-      console.log('La llave en uso falló, la que estaba en reposo toma el relevo...', e?.message || e);
-      try {
-        return await llamarGroqConClave(laOtra, mensajes, opts);
-      } catch (e2) {
-        throw e2;
+  for (let intento = 0; intento < (tieneDos ? 2 : 1); intento++) {
+    const apiKey = tieneDos ? getApiKey(key1, key2) : keyPrincipal;
+    if (!apiKey) continue;
+    try {
+      const resultado = await llamarGroqConClave(apiKey, mensajes, opts);
+      if (tieneDos) registrarLlamada();
+      return resultado;
+    } catch (e) {
+      if (tieneDos) {
+        console.warn('[Groq] Llave', getLlaveActiva(), 'falló:', e?.message || e);
+        cambiarLlave();
+      } else {
+        throw e;
       }
     }
-    throw e;
   }
+
+  throw new Error('Ambas llaves fallaron.');
 }
 
 module.exports = { llamarGroq };
