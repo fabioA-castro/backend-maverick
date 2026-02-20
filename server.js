@@ -20,7 +20,14 @@ if (!fs.existsSync(promptsDir)) console.warn('Aviso: carpeta prompts/ no encontr
 const numPrompts = promptsData.getList().length;
 console.log(`Config cargada. Prompts cargados: ${numPrompts}`);
 const groqService = require('./servicios/groqService');
+const { getMoonshotApiKey } = require('./servicios/moonshotService');
 const numLlaves = groqService.getNumLlaves ? groqService.getNumLlaves() : 0;
+const llave1Kimi = getMoonshotApiKey();
+if (llave1Kimi) {
+  console.log('Llave 1 (Kimi/Moonshot): configurada. Orden: 1ª Kimi, después Groq (2ª, 3ª, 4ª).');
+} else {
+  console.log('Llave 1 (Kimi): no configurada. Solo se usan llaves Groq.');
+}
 console.log(`Llaves Groq configuradas: ${numLlaves} (1: CLAVE_API_GROQ_2/GROQ_API_KEY_2, 2: GROQ_API_KEY, 3: GROQ_MODELO_1/GROQ_API_KEY_3, 4: GROQ_API_KEY_4)`);
 
 try { fs.mkdirSync(path.join(__dirname, 'logs'), { recursive: true }); } catch (_) {}
