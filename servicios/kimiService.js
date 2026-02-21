@@ -225,7 +225,7 @@ function getInfoLlaves() {
   const configuradas = [1, 2, 3, 4].filter(n => allKeys[n - 1]).map(n => {
     const nombre = (process.env['KIMI_LLAVE_' + n + '_NOMBRE'] || process.env['KIMI_LLAVE_NOMBRE_' + n] || ('kimi_llave_' + n)).trim();
     const modelo = getModeloParaLlave(n);
-    const info_limite = 'Esta llave permite más llamadas por día.';
+    const info_limite = '60 solicitudes/min, 1.000/día. 10K tokens/min, 300K tokens/día.';
     return { numero: n, configurada: true, nombre: nombre || 'kimi_llave_' + n, proveedor: 'kimi', modelo, info_limite };
   });
   const override = getLlavesActivas();
