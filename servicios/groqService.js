@@ -194,6 +194,7 @@ async function llamarGroq(mensajes, opciones = {}) {
       for (const idx of orden) {
         const numLlave = idx + 1;
         const apiKeyBC3 = keysCompletas[idx];
+        console.log('[Groq] BC3: usando llave', numLlave);
         for (let r = 0; r < MAX_REINTENTOS_TPM_MISMA_LLAVE; r++) {
           try {
             const resultado = await llamarGroqConClave(apiKeyBC3, mensajes, optsBC3);
@@ -305,8 +306,9 @@ async function llamarGroq(mensajes, opciones = {}) {
     for (let i = 0; i < numKeys; i++) {
       const idx = (roundRobinIndex + i) % numKeys;
       const apiKey = keys[idx];
-      const numLlave = idx + 1;
+        const numLlave = idx + 1;
       const optsLlave = optsConModeloParaLlave(opts, numLlave);
+      console.log('[Groq] Completar (no BC3): usando llave', numLlave);
       try {
         const resultado = await llamarGroqConClave(apiKey, mensajes, optsLlave);
         roundRobinIndex = (roundRobinIndex + 1) % numKeys;
@@ -315,12 +317,12 @@ async function llamarGroq(mensajes, opciones = {}) {
         ultimoErr = e;
         const msg = e?.message || '';
         if (esTPD(msg)) {
-          console.warn('[Groq] Llave', numLlave, 'cupo diario (TPD) agotado; probando siguiente.');
+          console.warn('[Groq] Llave', numLlave, '(no BC3) cupo diario (TPD) agotado; probando siguiente.');
           continue;
         }
         const seg = parsearRetrySegundos(msg);
         if (seg > 0 && esRateLimit(msg)) {
-          console.warn('[Groq] Llave', numLlave, 'límite TPM; esperando', seg, 's (reintento misma llave).');
+          console.warn('[Groq] Llave', numLlave, '(no BC3) límite TPM; esperando', seg, 's (reintento misma llave).');
           await sleep(seg * 1000);
           try {
             const resultado = await llamarGroqConClave(apiKey, mensajes, optsLlave);
