@@ -134,6 +134,14 @@ async function llamarGroqConClave(apiKey, mensajes, opciones) {
   const data = await response.json();
   if (!response.ok) {
     const msg = data?.error?.message || 'Error Groq';
+    const es413 = response.status === 413 || /entidad de solicitud es demasiado grande|request entity too large|payload too large/i.test(msg);
+    if (es413) {
+      console.warn('[Groq] 413 body demasiado grande. Reduce el bloque BC3 en la app o sube GROQ_MAX_BODY_BYTES en Railway.');
+      throw new Error(
+        'La solicitud a Groq es demasiado grande (límite de la API). ' +
+        'Reduce el tamaño del bloque BC3 en la app (MAX_BC3_CHARS_ARBOL_LLM) o en Railway añade GROQ_MAX_BODY_BYTES menor (ej. 600000) para forzar bloques más pequeños.'
+      );
+    }
     throw new Error(msg);
   }
 
