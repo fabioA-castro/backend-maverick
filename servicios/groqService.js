@@ -9,7 +9,12 @@
 /** URL de la API de Groq. Por defecto la oficial; puedes cambiarla con la variable de entorno GROQ_API_URL. */
 const GROQ_URL = (process.env.GROQ_API_URL || 'https://api.groq.com/openai/v1/chat/completions').trim();
 
-/** Máximo de llaves. 1: CLAVE_API_GROQ_2; 2: GROQ_API_KEY o "CLAVE DE API DE GROQ"; 3: GROQ_MODELO_1/GROQ_API_KEY_3; 4: GROQ_API_KEY_4. */
+/** URL de la API de Kimi (OpenAI-compatible). Variable KIMI_API_URL. */
+const KIMI_URL = (process.env.KIMI_API_URL || 'https://kimi-k2.ai/api/v1/chat/completions').trim();
+/** Modelo Kimi por defecto. Variable KIMI_MODEL. */
+const KIMI_MODEL = (process.env.KIMI_MODEL || 'moonshot/kimi-k2-instruct-0905').trim();
+
+/** Máximo de llaves. 1: GROQ_API_KEY (sin número); 2: GROQ_API_KEY_2; 3: GROQ_API_KEY_3; 4: GROQ_API_KEY_4. El número en la variable coincide con la llave. */
 const MAX_LLAVES = 4;
 
 /** Índice para round-robin cuando hay 3+ llaves (no usamos groqRotacion). */
@@ -34,18 +39,38 @@ function getLlavesActivas() {
   return llavesActivasOverride;
 }
 
-/** Construye el array de llaves desde env. [0]=llave1, [1]=llave2, etc. */
-function obtenerLlaves() {
-  const key1 = (process.env.CLAVE_API_GROQ_2 || process.env.GROQ_API_KEY_2 || process.env.CLAVE_DE_API_DE_GROQ_2 || process.env['CLAVE DE API DE GROQ 2'] || '').trim();
-  const key2 = (process.env.GROQ_API_KEY || process.env['CLAVE DE API DE GROQ'] || '').trim();
-  const key3 = (process.env.GROQ_MODELO_1 || process.env.GROQ_API_KEY_3 || '').trim();
+/** Proveedor por slot (1-4): 'groq' | 'kimi'. Variables GROQ_LLAVE_N_PROVEEDOR o LLAVE_N_PROVEEDOR; por defecto groq. */
+function getProveedorParaSlot(n) {
+  if (n < 1 || n > MAX_LLAVES) return 'groq';
+  const v = (process.env['GROQ_LLAVE_' + n + '_PROVEEDOR'] || process.env['LLAVE_' + n + '_PROVEEDOR'] || 'groq').trim().toLowerCase();
+  return v === 'kimi' ? 'kimi' : 'groq';
+}
+
+/** API key para el slot n: si el proveedor del slot es kimi usa KIMI_API_KEY / KIMI_API_KEY_2..4; si no, GROQ_API_KEY / _2..4. */
+function getKeyParaSlot(n) {
+  if (n < 1 || n > MAX_LLAVES) return '';
+  const prov = getProveedorParaSlot(n);
+  if (prov === 'kimi') {
+    const k1 = (process.env.KIMI_API_KEY || process.env.KIMI_API_KEY_1 || '').trim();
+    const kn = n === 1 ? k1 : (process.env['KIMI_API_KEY_' + n] || '').trim();
+    return n === 1 ? k1 : kn;
+  }
+  const key1 = (process.env.GROQ_API_KEY || process.env['CLAVE DE API DE GROQ'] || '').trim();
+  const key2 = (process.env.GROQ_API_KEY_2 || process.env.CLAVE_API_GROQ_2 || process.env.CLAVE_DE_API_DE_GROQ_2 || process.env['CLAVE DE API DE GROQ 2'] || '').trim();
+  const key3 = (process.env.GROQ_API_KEY_3 || process.env.GROQ_MODELO_1 || '').trim();
   const key4 = (process.env.GROQ_API_KEY_4 || process.env.CLAVE_DE_API_DE_GROQ_4 || process.env['CLAVE DE API DE GROQ 4'] || '').trim();
-  return [key1, key2, key3, key4].filter(Boolean);
+  const arr = [key1, key2, key3, key4];
+  return (arr[n - 1] || '').trim();
+}
+
+/** Array de 4 elementos: clave del slot 1..4 (vacío si no configurado). Índice 0 = slot 1. */
+function obtenerLlaves() {
+  return [1, 2, 3, 4].map(n => getKeyParaSlot(n));
 }
 
 /** Número de llaves configuradas (para exportar al controlador). */
 function getNumLlaves() {
-  return obtenerLlaves().length;
+  return obtenerLlaves().filter(Boolean).length;
 }
 
 /** Si está definido (1-4), esa llave se usa SOLO para árbol BC3; el resto de peticiones usan las otras llaves. (Compatibilidad: devuelve la primera si hay varias.) */
@@ -194,10 +219,55 @@ async function llamarGroqConClave(apiKey, mensajes, opciones) {
     : '';
 }
 
+async function llamarKimiConClave(apiKey, mensajes, opciones) {
+  const modelo = KIMI_MODEL;
+  const body = {
+    model: modelo,
+    messages: mensajes,
+    temperature: opciones.temperatura ?? 0.2,
+    max_tokens: opciones.max_tokens ?? 4096,
+  };
+  const bodyStr = JSON.stringify(body);
+  let response;
+  try {
+    response = await fetch(KIMI_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: bodyStr,
+    });
+  } catch (err) {
+    const msg = err?.message || String(err);
+    throw new Error('Error de red al llamar a Kimi: ' + msg);
+  }
+  let data;
+  try {
+    const text = await response.text();
+    data = text ? JSON.parse(text) : {};
+  } catch (_) {
+    throw new Error('Kimi devolvió respuesta no JSON (status ' + response.status + ').');
+  }
+  if (!response.ok) {
+    const msg = (data && data.error && data.error.message) ? data.error.message : 'Error Kimi';
+    throw new Error(msg);
+  }
+  return (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content)
+    ? String(data.choices[0].message.content).trim()
+    : '';
+}
+
+/** Llama a Groq o Kimi según el proveedor de la llave. */
+async function llamarProveedorConClave(apiKey, provider, mensajes, opciones) {
+  if (provider === 'kimi') return llamarKimiConClave(apiKey, mensajes, opciones);
+  return llamarGroqConClave(apiKey, mensajes, opciones);
+}
+
 async function llamarGroq(mensajes, opciones = {}) {
   const allKeys = obtenerLlaves();
   const override = getLlavesActivas();
-  const activas = override === undefined ? [1] : (override === null ? [1, 2, 3, 4].filter(n => n <= allKeys.length && allKeys[n - 1]) : override);
+  const activas = override === undefined ? [1] : (override === null ? [1, 2, 3, 4].filter(n => allKeys[n - 1]) : override);
   let keys = activas.map(n => allKeys[n - 1]).filter(Boolean);
   const keyNumeros = activas.filter((_, i) => keys[i]);
   const llavesBC3 = getLlavesBC3() ?? (getLlaveCompuesto() != null ? [getLlaveCompuesto()] : null);
@@ -233,11 +303,12 @@ async function llamarGroq(mensajes, opciones = {}) {
       for (const idx of orden) {
         const numLlave = idx + 1;
         const apiKeyBC3 = keysCompletas[idx];
-        console.log('[Groq] Completar (si BC3): usando llave', numLlave);
+        const provBC3 = getProveedorParaSlot(numLlave);
+        console.log('[Groq] Completar (si BC3): usando llave', numLlave, '(' + provBC3 + ')');
         if (numLlave === 4) console.log('[Groq] >>> Llave 4 en uso (BC3) <<<');
         for (let r = 0; r < MAX_REINTENTOS_TPM_MISMA_LLAVE; r++) {
           try {
-            const resultado = await llamarGroqConClave(apiKeyBC3, mensajes, optsBC3);
+            const resultado = await llamarProveedorConClave(apiKeyBC3, provBC3, mensajes, optsBC3);
             roundRobinBC3Index = (roundRobinBC3Index + 1) % numBC3;
             return resultado;
           } catch (e) {
@@ -284,7 +355,7 @@ async function llamarGroq(mensajes, opciones = {}) {
     const optsForzada = optsConModeloParaLlave(opts, llaveForzada);
     for (let r = 0; r < MAX_REINTENTOS_TPM_MISMA_LLAVE; r++) {
       try {
-        const resultado = await llamarGroqConClave(apiKeyPrimera, mensajes, optsForzada);
+        const resultado = await llamarProveedorConClave(apiKeyPrimera, getProveedorParaSlot(llaveForzada), mensajes, optsForzada);
         return resultado;
       } catch (e) {
         ultimoError = e;
@@ -292,8 +363,9 @@ async function llamarGroq(mensajes, opciones = {}) {
         if (esTPD(msg)) {
           console.warn('[Groq] Bloque llave', llaveForzada, 'TPD agotado; probando el resto de llaves…');
           for (const i of otrasIndices) {
+            const slot = keyNumeros[i];
             try {
-              return await llamarGroqConClave(keys[i], mensajes, optsConModeloParaLlave(opts, i + 1));
+              return await llamarProveedorConClave(keys[i], getProveedorParaSlot(slot), mensajes, optsConModeloParaLlave(opts, slot));
             } catch (_) {}
           }
           throw new Error((ultimoError?.message || msg) + ' (todas las llaves sin cupo).');
@@ -311,8 +383,9 @@ async function llamarGroq(mensajes, opciones = {}) {
     // Tras 3 reintentos TPM con la llave forzada, probar el resto de llaves.
     console.warn('[Groq] Bloque llave', llaveForzada, 'falló tras reintentos; probando el resto…');
     for (const i of otrasIndices) {
+      const slot = keyNumeros[i];
       try {
-        return await llamarGroqConClave(keys[i], mensajes, optsConModeloParaLlave(opts, i + 1));
+        return await llamarProveedorConClave(keys[i], getProveedorParaSlot(slot), mensajes, optsConModeloParaLlave(opts, slot));
       } catch (e2) {
         ultimoError = e2;
       }
@@ -322,12 +395,12 @@ async function llamarGroq(mensajes, opciones = {}) {
 
   // Una llave: reintentos TPM y devolver o lanzar.
   if (numKeys === 1) {
-    const opts1 = optsConModeloParaLlave(opts, 1);
+    const opts1 = optsConModeloParaLlave(opts, keyNumeros[0] || 1);
     let lastRetry = 0;
     let ultimoE = null;
     for (let r = 0; r < MAX_REINTENTOS_TPM_MISMA_LLAVE; r++) {
       try {
-        return await llamarGroqConClave(keyPrincipal, mensajes, opts1);
+        return await llamarProveedorConClave(keyPrincipal, getProveedorParaSlot(keyNumeros[0] || 1), mensajes, opts1);
       } catch (e) {
         ultimoE = e;
         const msg = e?.message || '';
@@ -349,10 +422,11 @@ async function llamarGroq(mensajes, opciones = {}) {
       const apiKey = keys[idx];
       const numLlave = numLlaveFor(idx);
       const optsLlave = optsConModeloParaLlave(opts, numLlave);
-      console.log('[Groq] Completar (no BC3): usando llave', numLlave);
+      const prov = getProveedorParaSlot(numLlave);
+      console.log('[Groq] Completar (no BC3): usando llave', numLlave, '(' + prov + ')');
       if (numLlave === 4) console.log('[Groq] >>> Llave 4 en uso (round-robin) <<<');
       try {
-        const resultado = await llamarGroqConClave(apiKey, mensajes, optsLlave);
+        const resultado = await llamarProveedorConClave(apiKey, prov, mensajes, optsLlave);
         roundRobinIndex = (roundRobinIndex + 1) % numKeys;
         return resultado;
       } catch (e) {
@@ -367,7 +441,7 @@ async function llamarGroq(mensajes, opciones = {}) {
           console.warn('[Groq] Llave', numLlave, '(no BC3) límite TPM; esperando', seg, 's (reintento misma llave).');
           await sleep(seg * 1000);
           try {
-            const resultado = await llamarGroqConClave(apiKey, mensajes, optsLlave);
+            const resultado = await llamarProveedorConClave(apiKey, prov, mensajes, optsLlave);
             roundRobinIndex = (roundRobinIndex + 1) % numKeys;
             return resultado;
           } catch (_) {}
@@ -378,12 +452,13 @@ async function llamarGroq(mensajes, opciones = {}) {
   }
 }
 
-/** Para GET /llaves: lista de llaves 1-4 con nombre por defecto groq_llave_1..4; por defecto solo llave 1 activa. */
+/** Para GET /llaves: lista de llaves 1-4 con nombre y proveedor (groq|kimi); por defecto solo llave 1 activa. */
 function getInfoLlaves() {
   const allKeys = obtenerLlaves();
   const configuradas = [1, 2, 3, 4].filter(n => allKeys[n - 1]).map(n => {
     const nombre = (process.env['GROQ_LLAVE_' + n + '_NOMBRE'] || process.env['GROQ_LLAVE_NOMBRE_' + n] || ('groq_llave_' + n)).trim();
-    return { numero: n, configurada: true, nombre: nombre || 'groq_llave_' + n };
+    const proveedor = getProveedorParaSlot(n);
+    return { numero: n, configurada: true, nombre: nombre || 'groq_llave_' + n, proveedor };
   });
   const override = getLlavesActivas();
   const activas = override === undefined ? [1] : (override === null ? configuradas.map(c => c.numero) : override);

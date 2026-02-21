@@ -21,7 +21,7 @@ const numPrompts = promptsData.getList().length;
 console.log(`Config cargada. Prompts cargados: ${numPrompts}`);
 const groqService = require('./servicios/groqService');
 const numLlaves = groqService.getNumLlaves ? groqService.getNumLlaves() : 0;
-console.log(`Llaves Groq configuradas: ${numLlaves} (1: CLAVE_API_GROQ_2/GROQ_API_KEY_2, 2: GROQ_API_KEY, 3: GROQ_MODELO_1/GROQ_API_KEY_3, 4: GROQ_API_KEY_4)`);
+console.log(`Llaves Groq configuradas: ${numLlaves} (1: GROQ_API_KEY, 2: GROQ_API_KEY_2, 3: GROQ_API_KEY_3, 4: GROQ_API_KEY_4)`);
 if (numLlaves > 0 && groqService.getModeloParaLlave) {
   for (let n = 1; n <= numLlaves; n++) {
     const modelo = groqService.getModeloParaLlave(n);
