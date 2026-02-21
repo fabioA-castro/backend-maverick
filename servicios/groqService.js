@@ -177,11 +177,7 @@ async function llamarGroq(mensajes, opciones = {}) {
   const llavesBC3 = getLlavesBC3() ?? (getLlaveCompuesto() != null ? [getLlaveCompuesto()] : null);
   const esArbolBC3 = !!opciones.esArbolBC3;
 
-  // Las llaves BC3 (GROQ_LLAVE_SOLO_BC3 p. ej. "2,4" o la que tiene groq/compuesto) solo se usan para JSON/árbol; el resto no.
-  if (llavesBC3 != null && llavesBC3.length > 0 && !esArbolBC3) {
-    const setBC3 = new Set(llavesBC3);
-    keys = keys.filter((_, i) => !setBC3.has(i + 1));
-  }
+  // Para peticiones BC3 usamos solo llaves BC3 (bloque más abajo). Para el resto, usamos todas las llaves en round-robin (incluida la 4).
   const numKeys = keys.length;
   if (numKeys === 0) {
     throw new Error('Ninguna llave Groq configurada (GROQ_API_KEY, GROQ_API_KEY_2, etc.)');
@@ -211,7 +207,7 @@ async function llamarGroq(mensajes, opciones = {}) {
       for (const idx of orden) {
         const numLlave = idx + 1;
         const apiKeyBC3 = keysCompletas[idx];
-        console.log('[Groq] BC3: usando llave', numLlave);
+        console.log('[Groq] Completar (si BC3): usando llave', numLlave);
         for (let r = 0; r < MAX_REINTENTOS_TPM_MISMA_LLAVE; r++) {
           try {
             const resultado = await llamarGroqConClave(apiKeyBC3, mensajes, optsBC3);
