@@ -29,10 +29,11 @@ try {
   console.warn('No se pudo cargar config.json:', e.message);
 }
 
-// Railway/entorno: forzar modelo desde variable (GROQ_MODEL o MODELO_DE_GROQ)
-const modeloEnv = (process.env.GROQ_MODEL || process.env.MODELO_DE_GROQ || '').trim();
+// Railway/entorno: forzar modelo desde variable (GROQ_MODEL, GROQ_MODELO o MODELO_DE_GROQ)
+const modeloEnv = (process.env.GROQ_MODEL || process.env.GROQ_MODELO || process.env.MODELO_DE_GROQ || '').trim();
 if (modeloEnv) {
-  config.groq.modelo = modeloEnv;
+  // groq/compuesto (español) = groq/compound
+  config.groq.modelo = modeloEnv.replace(/^groq\/compuesto$/i, 'groq/compound');
   console.log('Groq modelo desde variable de entorno:', config.groq.modelo);
 }
 

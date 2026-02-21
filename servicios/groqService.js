@@ -115,7 +115,8 @@ async function sleep(ms) {
 const GROQ_MAX_BODY_BYTES = Math.min(2 * 1024 * 1024, Math.max(100000, parseInt(process.env.GROQ_MAX_BODY_BYTES || '900000', 10) || 900000));
 
 async function llamarGroqConClave(apiKey, mensajes, opciones) {
-  const modelo = opciones.modelo || MODELO_COMPOUND;
+  // Siempre usar groq/compound en la API (evita modelos bloqueados por org como meta-llama/llama-4-scout-*).
+  const modelo = MODELO_COMPOUND;
   const body = {
     model: modelo,
     messages: mensajes,
