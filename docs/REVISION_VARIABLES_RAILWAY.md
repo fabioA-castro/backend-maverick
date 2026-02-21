@@ -59,11 +59,12 @@ Si alguna tiene `meta-llama`, `llama-4-scout` o `openai/gpt-oss-120b`, **bórral
 | **Llave 3**  | `GROQ_MODELO_1` o `GROQ_API_KEY_3`         |
 | **Llave 4**  | `GROQ_API_KEY_4`                           |
 
-**Crear JSON / árbol BC3:** el backend usa la llave que tenga `groq/compound` (por `GROQ_MODEL_1` etc.) o la que indiques con `GROQ_LLAVE_SOLO_BC3`. Si quieres que **solo** la llave **GROQ_API_KEY** (Llave 2) se use para crear JSON y árbol BC3, añade en Railway:
+**Crear JSON / árbol BC3:** el backend usa la llave que tenga `groq/compound` o la(s) que indiques con `GROQ_LLAVE_SOLO_BC3`. Puedes usar **una** o **varias** llaves para BC3 (rotación entre ellas si una se queda sin cupo):
 
-- **`GROQ_LLAVE_SOLO_BC3=2`**
+- **`GROQ_LLAVE_SOLO_BC3=2`** → solo Llave 2 (GROQ_API_KEY) para BC3.
+- **`GROQ_LLAVE_SOLO_BC3=2,4`** → Llaves 2 y 4 para BC3 (round-robin; si la 2 llega al límite TPM/TPD se usa la 4 y viceversa).
 
-Así la Llave 2 (GROQ_API_KEY) se usará solo para BC3; las otras llaves (1 y 3) para el resto de peticiones.
+Las demás llaves (1, 3 si no están en la lista) se usan para el resto de peticiones.
 
 ## 5. Límites de tamaño (si ves "la entidad de solicitud es demasiado grande")
 
@@ -76,7 +77,7 @@ Así la Llave 2 (GROQ_API_KEY) se usará solo para BC3; las otras llaves (1 y 3)
 
 | Variable              | Uso |
 |-----------------------|-----|
-| `GROQ_LLAVE_SOLO_BC3` | Número de llave (1–4) que se usa **solo** para JSON/árbol BC3. Ej.: `2` para usar solo GROQ_API_KEY en BC3. |
+| `GROQ_LLAVE_SOLO_BC3` | Una llave o varias separadas por coma (1–4) que se usan **solo** para JSON/árbol BC3. Ej.: `2` o `2,4` para repartir BC3 entre Llave 2 y 4. |
 | `MOONSHOT_API_KEY`    | Ya no se usa (Kimi quitado del backend). Puedes borrarla. |
 
 ---
@@ -87,6 +88,6 @@ Así la Llave 2 (GROQ_API_KEY) se usará solo para BC3; las otras llaves (1 y 3)
 - [ ] No existe `GROQ_MODEL_1`, `_2`, `_3` o `_4` con valor `meta-llama` ni `llama-4-scout`.
 - [ ] Las variables de llaves (`CLAVE_API_GROQ_2`, `GROQ_API_KEY`, `GROQ_MODELO_1`, etc.) tienen claves `gsk_...`, no nombres de modelo.
 - [ ] (Opcional) `GROQ_MODEL_1=groq/compound` si quieres que la Llave 1 sea explícitamente compound para BC3.
-- [ ] (Opcional) `GROQ_LLAVE_SOLO_BC3=2` si quieres que **solo** la llave GROQ_API_KEY (Llave 2) se use para crear JSON/árbol BC3.
+- [ ] (Opcional) `GROQ_LLAVE_SOLO_BC3=2` o `GROQ_LLAVE_SOLO_BC3=2,4` para que solo la(s) llave(s) indicada(s) se use(n) para crear JSON/árbol BC3.
 
 Tras cambiar variables, **Actualizar variables** y, si hace falta, **redesplegar** el servicio.

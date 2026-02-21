@@ -14,6 +14,8 @@ const MAX_LLAVES = 4;
 
 /** Índice para round-robin cuando hay 3+ llaves (no usamos groqRotacion). */
 let roundRobinIndex = 0;
+/** Índice para round-robin entre llaves BC3 (cuando GROQ_LLAVE_SOLO_BC3=2,4). */
+let roundRobinBC3Index = 0;
 
 /** Construye el array de llaves desde env. [0]=llave1, [1]=llave2, etc. */
 function obtenerLlaves() {
@@ -29,11 +31,19 @@ function getNumLlaves() {
   return obtenerLlaves().length;
 }
 
-/** Si está definido (1-4), esa llave se usa SOLO para árbol BC3; el resto de peticiones usan las otras llaves. */
+/** Si está definido (1-4), esa llave se usa SOLO para árbol BC3; el resto de peticiones usan las otras llaves. (Compatibilidad: devuelve la primera si hay varias.) */
 function getLlaveSoloBC3() {
-  const v = process.env.GROQ_LLAVE_SOLO_BC3 || process.env.LLAVE_SOLO_BC3 || '';
-  const n = parseInt(v, 10);
-  return n >= 1 && n <= MAX_LLAVES ? n : null;
+  const arr = getLlavesBC3();
+  return arr && arr.length > 0 ? arr[0] : null;
+}
+
+/** Lista de llaves (1-4) reservadas para JSON/árbol BC3. Variable GROQ_LLAVE_SOLO_BC3: un número "2" o varios "2,4". */
+function getLlavesBC3() {
+  const v = (process.env.GROQ_LLAVE_SOLO_BC3 || process.env.LLAVE_SOLO_BC3 || '').trim();
+  if (!v) return null;
+  const partes = v.split(',').map(s => parseInt(s.trim(), 10)).filter(n => n >= 1 && n <= MAX_LLAVES);
+  const unicos = [...new Set(partes)];
+  return unicos.length > 0 ? unicos : null;
 }
 
 /** ID del modelo compound en Groq (70K TPM, 250 RPD). */
@@ -132,13 +142,13 @@ async function llamarGroqConClave(apiKey, mensajes, opciones) {
 
 async function llamarGroq(mensajes, opciones = {}) {
   let keys = obtenerLlaves();
-  const llaveSoloBC3 = getLlaveSoloBC3();
+  const llavesBC3 = getLlavesBC3() ?? (getLlaveCompuesto() != null ? [getLlaveCompuesto()] : null);
   const esArbolBC3 = !!opciones.esArbolBC3;
 
-  // La llave de BC3 (GROQ_LLAVE_SOLO_BC3 o la que tiene groq/compuesto) solo se usa para creación JSON/árbol; el resto no la usa.
-  const llaveSoloParaBC3 = llaveSoloBC3 ?? getLlaveCompuesto();
-  if (llaveSoloParaBC3 != null && !esArbolBC3) {
-    keys = keys.filter((_, i) => i !== llaveSoloParaBC3 - 1);
+  // Las llaves BC3 (GROQ_LLAVE_SOLO_BC3 p. ej. "2,4" o la que tiene groq/compuesto) solo se usan para JSON/árbol; el resto no.
+  if (llavesBC3 != null && llavesBC3.length > 0 && !esArbolBC3) {
+    const setBC3 = new Set(llavesBC3);
+    keys = keys.filter((_, i) => !setBC3.has(i + 1));
   }
   const numKeys = keys.length;
   if (numKeys === 0) {
@@ -153,34 +163,44 @@ async function llamarGroq(mensajes, opciones = {}) {
     max_tokens: opciones.max_tokens ?? 4096,
   };
 
-  // Creación de JSON/árbol BC3: usar llave con groq/compuesto (muchos tokens) o la dedicada GROQ_LLAVE_SOLO_BC3.
+  // Creación de JSON/árbol BC3: usar llaves GROQ_LLAVE_SOLO_BC3 (ej. "2,4") o la que tiene groq/compuesto; rotación entre ellas.
   const llaveCompuesto = getLlaveCompuesto();
-  const llaveBC3 = llaveSoloBC3 ?? llaveCompuesto;
-  if (esArbolBC3 && llaveBC3 != null) {
+  const llavesBC3ParaPeticion = llavesBC3 && llavesBC3.length > 0 ? llavesBC3 : (llaveCompuesto != null ? [llaveCompuesto] : null);
+  if (esArbolBC3 && llavesBC3ParaPeticion != null && llavesBC3ParaPeticion.length > 0) {
     const keysCompletas = obtenerLlaves();
-    const idxBC3 = llaveBC3 - 1;
-    if (idxBC3 < keysCompletas.length && keysCompletas[idxBC3]) {
-      const apiKeyBC3 = keysCompletas[idxBC3];
-      let ultimoError = null;
+    const indicesBC3 = llavesBC3ParaPeticion.map(n => n - 1).filter(i => i >= 0 && i < keysCompletas.length && keysCompletas[i]);
+    if (indicesBC3.length > 0) {
       const optsBC3 = { ...opts, modelo: MODELO_COMPOUND };
-      for (let r = 0; r < MAX_REINTENTOS_TPM_MISMA_LLAVE; r++) {
-        try {
-          return await llamarGroqConClave(apiKeyBC3, mensajes, optsBC3);
-        } catch (e) {
-          ultimoError = e;
-          const msg = e?.message || '';
-          if (esTPD(msg)) {
-            console.warn('[Groq] Llave BC3', llaveBC3, 'TPD agotado; no se usa otra llave.');
-            throw new Error((ultimoError?.message || msg) + ' (llave BC3 sin cupo).');
+      let ultimoError = null;
+      // Round-robin entre llaves BC3 para repartir carga (ej. 2 y 4).
+      const numBC3 = indicesBC3.length;
+      const orden = [...Array(numBC3)].map((_, k) => indicesBC3[(roundRobinBC3Index + k) % numBC3]);
+      for (const idx of orden) {
+        const numLlave = idx + 1;
+        const apiKeyBC3 = keysCompletas[idx];
+        for (let r = 0; r < MAX_REINTENTOS_TPM_MISMA_LLAVE; r++) {
+          try {
+            const resultado = await llamarGroqConClave(apiKeyBC3, mensajes, optsBC3);
+            roundRobinBC3Index = (roundRobinBC3Index + 1) % numBC3;
+            return resultado;
+          } catch (e) {
+            ultimoError = e;
+            const msg = e?.message || '';
+            if (esTPD(msg)) {
+              console.warn('[Groq] Llave BC3', numLlave, 'TPD agotado; probando siguiente llave BC3.');
+              break; // salir del for r, probar siguiente llave en orden
+            }
+            const seg = parsearRetrySegundos(msg);
+            if (seg > 0 && esRateLimit(msg)) {
+              console.warn('[Groq] Llave BC3', numLlave, 'límite TPM; esperando', seg, 's…');
+              await sleep(seg * 1000);
+            } else {
+              throw e;
+            }
           }
-          const seg = parsearRetrySegundos(msg);
-          if (seg > 0 && esRateLimit(msg)) {
-            console.warn('[Groq] Llave BC3', llaveBC3, 'límite TPM; esperando', seg, 's…');
-            await sleep(seg * 1000);
-          } else throw e;
         }
       }
-      throw new Error((ultimoError?.message || '') + '');
+      throw new Error((ultimoError?.message || 'Llaves BC3 sin cupo o fallo.') + '');
     }
   }
 
@@ -292,4 +312,4 @@ async function llamarGroq(mensajes, opciones = {}) {
   }
 }
 
-module.exports = { llamarGroq, getNumLlaves, getModeloParaLlave, getLlaveCompuesto };
+module.exports = { llamarGroq, getNumLlaves, getModeloParaLlave, getLlaveCompuesto, getLlavesBC3 };
