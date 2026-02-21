@@ -35,6 +35,22 @@ function getLlaveSoloBC3() {
   return n >= 1 && n <= MAX_LLAVES ? n : null;
 }
 
+/**
+ * Modelo por llave (1-4). Variables: GROQ_MODEL_1, GROQ_MODEL_2, GROQ_MODEL_3, GROQ_MODEL_4.
+ * Ejemplo: Llave 1 para BC3 (muchos tokens) → GROQ_MODEL_1=groq/compuesto
+ *          Llave 2 para muchas llamadas → GROQ_MODEL_2=moonshotai/kimi-k2-instruct
+ */
+function getModeloParaLlave(numLlave) {
+  if (numLlave < 1 || numLlave > MAX_LLAVES) return '';
+  return (process.env['GROQ_MODEL_' + numLlave] || process.env['GROQ_MODEL_LLAVE_' + numLlave] || '').trim();
+}
+
+/** Devuelve opts con el modelo de esa llave (si está definido); si no, usa el modelo por defecto de opts. */
+function optsConModeloParaLlave(opts, numLlave) {
+  const modelo = getModeloParaLlave(numLlave) || opts.modelo;
+  return { ...opts, modelo };
+}
+
 /** Segundos de espera antes de probar la otra llave (da tiempo a que se reinicie el TPM de la que acabamos de dejar). Variable de entorno: GROQ_ESPERA_ENTRE_LLAVES. */
 const ESPERA_ENTRE_LLAVES_SEGUNDOS = Math.min(60, Math.max(10, parseInt(process.env.GROQ_ESPERA_ENTRE_LLAVES || '20', 10) || 20));
 
@@ -122,9 +138,10 @@ async function llamarGroq(mensajes, opciones = {}) {
     if (idxBC3 < keysCompletas.length && keysCompletas[idxBC3]) {
       const apiKeyBC3 = keysCompletas[idxBC3];
       let ultimoError = null;
+      const optsBC3 = optsConModeloParaLlave(opts, llaveSoloBC3);
       for (let r = 0; r < MAX_REINTENTOS_TPM_MISMA_LLAVE; r++) {
         try {
-          return await llamarGroqConClave(apiKeyBC3, mensajes, opts);
+          return await llamarGroqConClave(apiKeyBC3, mensajes, optsBC3);
         } catch (e) {
           ultimoError = e;
           const msg = e?.message || '';
@@ -156,9 +173,10 @@ async function llamarGroq(mensajes, opciones = {}) {
     let lastRetry = 0;
     let ultimoError = null;
     // TPD (tokens/día): no sirve esperar; probar la otra llave de inmediato.
+    const optsForzada = optsConModeloParaLlave(opts, llaveForzada);
     for (let r = 0; r < MAX_REINTENTOS_TPM_MISMA_LLAVE; r++) {
       try {
-        const resultado = await llamarGroqConClave(apiKeyPrimera, mensajes, opts);
+        const resultado = await llamarGroqConClave(apiKeyPrimera, mensajes, optsForzada);
         return resultado;
       } catch (e) {
         ultimoError = e;
@@ -167,7 +185,7 @@ async function llamarGroq(mensajes, opciones = {}) {
           console.warn('[Groq] Bloque llave', llaveForzada, 'TPD agotado; probando el resto de llaves…');
           for (const i of otrasIndices) {
             try {
-              return await llamarGroqConClave(keys[i], mensajes, opts);
+              return await llamarGroqConClave(keys[i], mensajes, optsConModeloParaLlave(opts, i + 1));
             } catch (_) {}
           }
           throw new Error((ultimoError?.message || msg) + ' (todas las llaves sin cupo).');
@@ -186,7 +204,7 @@ async function llamarGroq(mensajes, opciones = {}) {
     console.warn('[Groq] Bloque llave', llaveForzada, 'falló tras reintentos; probando el resto…');
     for (const i of otrasIndices) {
       try {
-        return await llamarGroqConClave(keys[i], mensajes, opts);
+        return await llamarGroqConClave(keys[i], mensajes, optsConModeloParaLlave(opts, i + 1));
       } catch (e2) {
         ultimoError = e2;
       }
@@ -196,11 +214,12 @@ async function llamarGroq(mensajes, opciones = {}) {
 
   // Una llave: reintentos TPM y devolver o lanzar.
   if (numKeys === 1) {
+    const opts1 = optsConModeloParaLlave(opts, 1);
     let lastRetry = 0;
     let ultimoE = null;
     for (let r = 0; r < MAX_REINTENTOS_TPM_MISMA_LLAVE; r++) {
       try {
-        return await llamarGroqConClave(keyPrincipal, mensajes, opts);
+        return await llamarGroqConClave(keyPrincipal, mensajes, opts1);
       } catch (e) {
         ultimoE = e;
         const msg = e?.message || '';
@@ -220,23 +239,25 @@ async function llamarGroq(mensajes, opciones = {}) {
     for (let i = 0; i < numKeys; i++) {
       const idx = (roundRobinIndex + i) % numKeys;
       const apiKey = keys[idx];
+      const numLlave = idx + 1;
+      const optsLlave = optsConModeloParaLlave(opts, numLlave);
       try {
-        const resultado = await llamarGroqConClave(apiKey, mensajes, opts);
+        const resultado = await llamarGroqConClave(apiKey, mensajes, optsLlave);
         roundRobinIndex = (roundRobinIndex + 1) % numKeys;
         return resultado;
       } catch (e) {
         ultimoErr = e;
         const msg = e?.message || '';
         if (esTPD(msg)) {
-          console.warn('[Groq] Llave', idx + 1, 'cupo diario (TPD) agotado; probando siguiente.');
+          console.warn('[Groq] Llave', numLlave, 'cupo diario (TPD) agotado; probando siguiente.');
           continue;
         }
         const seg = parsearRetrySegundos(msg);
         if (seg > 0 && esRateLimit(msg)) {
-          console.warn('[Groq] Llave', idx + 1, 'límite TPM; esperando', seg, 's (reintento misma llave).');
+          console.warn('[Groq] Llave', numLlave, 'límite TPM; esperando', seg, 's (reintento misma llave).');
           await sleep(seg * 1000);
           try {
-            const resultado = await llamarGroqConClave(apiKey, mensajes, opts);
+            const resultado = await llamarGroqConClave(apiKey, mensajes, optsLlave);
             roundRobinIndex = (roundRobinIndex + 1) % numKeys;
             return resultado;
           } catch (_) {}
@@ -247,4 +268,4 @@ async function llamarGroq(mensajes, opciones = {}) {
   }
 }
 
-module.exports = { llamarGroq, getNumLlaves };
+module.exports = { llamarGroq, getNumLlaves, getModeloParaLlave };

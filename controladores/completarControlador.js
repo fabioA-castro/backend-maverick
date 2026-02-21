@@ -6,7 +6,6 @@
 const fs = require('fs');
 const path = require('path');
 const groqService = require('../servicios/groqService');
-const { getMoonshotApiKey, llamarMoonshot } = require('../servicios/moonshotService');
 const promptsData = require('../data/promptsData');
 const config = require('../configLoader');
 const { seleccionarModelo } = require('../servicios/modeloSelector');
@@ -63,36 +62,12 @@ async function completar(req, res) {
     if (promptId === 'arbol_jerarquico_bc3' && Number.isInteger(indiceBloque) && indiceBloque >= 0) {
       console.log(`[BC3] Bloque ${indiceBloque} - IA trabajando...`);
     }
-    // Orden de llaves: 1ª = Moonshot (Kimi), después las llaves Groq (2ª, 3ª, 4ª)
-    let text;
-    const llave1Kimi = getMoonshotApiKey();
-    if (llave1Kimi) {
-      try {
-        text = await llamarMoonshot(null, prompt, {
-          max_tokens: maxTokens,
-          temperature: config.groq?.temperatura ?? 0.2,
-        });
-        if (promptId === 'arbol_jerarquico_bc3' && Number.isInteger(indiceBloque) && indiceBloque >= 0) {
-          console.log(`[BC3] Bloque ${indiceBloque} - Llave 1 (Kimi) terminó.`);
-        }
-      } catch (eMoonshot) {
-        console.warn('[Llave 1 Kimi] Fallo, usando llaves Groq:', eMoonshot?.message || eMoonshot);
-        text = await groqService.llamarGroq(
-          [{ role: 'user', content: prompt }],
-          opts
-        );
-        if (promptId === 'arbol_jerarquico_bc3' && Number.isInteger(indiceBloque) && indiceBloque >= 0) {
-          console.log(`[BC3] Bloque ${indiceBloque} - Groq terminó.`);
-        }
-      }
-    } else {
-      text = await groqService.llamarGroq(
-        [{ role: 'user', content: prompt }],
-        opts
-      );
-      if (promptId === 'arbol_jerarquico_bc3' && Number.isInteger(indiceBloque) && indiceBloque >= 0) {
-        console.log(`[BC3] Bloque ${indiceBloque} - IA terminó.`);
-      }
+    const text = await groqService.llamarGroq(
+      [{ role: 'user', content: prompt }],
+      opts
+    );
+    if (promptId === 'arbol_jerarquico_bc3' && Number.isInteger(indiceBloque) && indiceBloque >= 0) {
+      console.log(`[BC3] Bloque ${indiceBloque} - IA terminó.`);
     }
     res.json({ text });
   } catch (e) {
