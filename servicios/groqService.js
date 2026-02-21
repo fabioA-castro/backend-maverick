@@ -100,16 +100,34 @@ function getLlaveCompuesto() {
   return null;
 }
 
-/** Modelo por llave (1-4). Variables GROQ_MODEL_1 … GROQ_MODEL_4. Si no hay, usamos el modelo por defecto (compound). */
-function getModeloParaLlave(numLlave) {
-  if (numLlave < 1 || numLlave > MAX_LLAVES) return '';
-  return (process.env['GROQ_MODEL_' + numLlave] || process.env['GROQ_MODEL_LLAVE_' + numLlave] || '').trim();
+/** Modelo por llave (1-4) para Groq. Variables GROQ_LLAVE_N_MODELO o GROQ_MODEL_N. Si no hay, compound. */
+function getModeloGroqParaLlave(numLlave) {
+  if (numLlave < 1 || numLlave > MAX_LLAVES) return MODELO_COMPOUND;
+  const v = (process.env['GROQ_LLAVE_' + numLlave + '_MODELO'] || process.env['GROQ_MODEL_' + numLlave] || process.env['GROQ_MODEL_LLAVE_' + numLlave] || '').trim();
+  return v || MODELO_COMPOUND;
 }
 
-/** Opciones con el modelo a usar para esa llave. Siempre acabamos usando groq/compound (único modelo del backend). */
+/** Modelo por llave (1-4) para Kimi. Variables KIMI_LLAVE_N_MODELO. Si no hay, KIMI_MODEL global. */
+function getModeloKimiParaLlave(numLlave) {
+  if (numLlave < 1 || numLlave > MAX_LLAVES) return KIMI_MODEL;
+  const v = (process.env['KIMI_LLAVE_' + numLlave + '_MODELO'] || '').trim();
+  return v || KIMI_MODEL;
+}
+
+/** Modelo a usar en la API para el slot n (según proveedor: Groq o Kimi). Para GET /llaves y opciones. */
+function getModeloParaSlot(numLlave) {
+  const prov = getProveedorParaSlot(numLlave);
+  return prov === 'kimi' ? getModeloKimiParaLlave(numLlave) : getModeloGroqParaLlave(numLlave);
+}
+
+/** Compatibilidad: mismo nombre que antes. */
+function getModeloParaLlave(numLlave) {
+  return getModeloGroqParaLlave(numLlave);
+}
+
+/** Opciones con el modelo a usar para esa llave (Groq o Kimi según el slot). */
 function optsConModeloParaLlave(opts, numLlave) {
-  const modeloLlave = getModeloParaLlave(numLlave);
-  const modelo = (modeloLlave && modeloLlave.toLowerCase().includes('groq/compound')) ? modeloLlave : MODELO_COMPOUND;
+  const modelo = getModeloParaSlot(numLlave);
   return { ...opts, modelo };
 }
 
@@ -157,8 +175,7 @@ async function sleep(ms) {
 const GROQ_MAX_BODY_BYTES = Math.min(2 * 1024 * 1024, Math.max(100000, parseInt(process.env.GROQ_MAX_BODY_BYTES || '900000', 10) || 900000));
 
 async function llamarGroqConClave(apiKey, mensajes, opciones) {
-  // Siempre usar groq/compound en la API (evita modelos bloqueados por org como meta-llama/llama-4-scout-*).
-  const modelo = MODELO_COMPOUND;
+  const modelo = (opciones.modelo && String(opciones.modelo).trim()) || MODELO_COMPOUND;
   if (!llamarGroqConClave._loggedModel) {
     console.log('[Groq] Enviando a la API model:', modelo);
     llamarGroqConClave._loggedModel = true;
@@ -220,7 +237,7 @@ async function llamarGroqConClave(apiKey, mensajes, opciones) {
 }
 
 async function llamarKimiConClave(apiKey, mensajes, opciones) {
-  const modelo = KIMI_MODEL;
+  const modelo = (opciones.modelo && String(opciones.modelo).trim()) || KIMI_MODEL;
   const body = {
     model: modelo,
     messages: mensajes,
@@ -466,8 +483,9 @@ function getInfoLlaves() {
   const configuradas = [1, 2, 3, 4].filter(n => allKeys[n - 1]).map(n => {
     const nombre = (process.env['GROQ_LLAVE_' + n + '_NOMBRE'] || process.env['GROQ_LLAVE_NOMBRE_' + n] || ('groq_llave_' + n)).trim();
     const proveedor = getProveedorParaSlot(n);
+    const modelo = getModeloParaSlot(n);
     const info_limite = getInfoLimitePorProveedor(proveedor);
-    return { numero: n, configurada: true, nombre: nombre || 'groq_llave_' + n, proveedor, info_limite };
+    return { numero: n, configurada: true, nombre: nombre || 'groq_llave_' + n, proveedor, modelo, info_limite };
   });
   const override = getLlavesActivas();
   const activas = override === undefined ? [1] : (override === null ? configuradas.map(c => c.numero) : override);
