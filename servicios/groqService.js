@@ -47,27 +47,16 @@ function getLlaveCompuesto() {
   return null;
 }
 
-/**
- * Modelo por llave (1-4). Variables: GROQ_MODEL_1, GROQ_MODEL_2, GROQ_MODEL_3, GROQ_MODEL_4.
- * Ejemplo: Llave 1 para BC3 (muchos tokens) → GROQ_MODEL_1=groq/compound
- *          Llave 2 para muchas llamadas → GROQ_MODEL_2=moonshotai/kimi-k2-instruct-0905
- */
+/** Modelo por llave (1-4). Variables GROQ_MODEL_1 … GROQ_MODEL_4. Si no hay, usamos el modelo por defecto (compound). */
 function getModeloParaLlave(numLlave) {
   if (numLlave < 1 || numLlave > MAX_LLAVES) return '';
   return (process.env['GROQ_MODEL_' + numLlave] || process.env['GROQ_MODEL_LLAVE_' + numLlave] || '').trim();
 }
 
-/**
- * Devuelve opts con el modelo de esa llave (si está definido); si no, usa el modelo por defecto de opts.
- * Si el modelo global (GROQ_MODEL) es groq/compound, SIEMPRE usamos compound en todas las llaves;
- * así no se envía openai/gpt-oss-120b ni meta-llama por variables por llave.
- */
+/** Opciones con el modelo a usar para esa llave. Siempre acabamos usando groq/compound (único modelo del backend). */
 function optsConModeloParaLlave(opts, numLlave) {
-  const defaultEsCompound = opts.modelo && String(opts.modelo).toLowerCase().includes('groq/compound');
-  if (defaultEsCompound) {
-    return { ...opts, modelo: opts.modelo };
-  }
-  const modelo = getModeloParaLlave(numLlave) || opts.modelo;
+  const modeloLlave = getModeloParaLlave(numLlave);
+  const modelo = (modeloLlave && modeloLlave.toLowerCase().includes('groq/compound')) ? modeloLlave : MODELO_COMPOUND;
   return { ...opts, modelo };
 }
 
@@ -105,6 +94,7 @@ async function sleep(ms) {
 }
 
 async function llamarGroqConClave(apiKey, mensajes, opciones) {
+  const modelo = opciones.modelo || MODELO_COMPOUND;
   const response = await fetch(GROQ_URL, {
     method: 'POST',
     headers: {
@@ -112,7 +102,7 @@ async function llamarGroqConClave(apiKey, mensajes, opciones) {
       'Authorization': `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: opciones.modelo || 'openai/gpt-oss-120b',
+      model: modelo,
       messages: mensajes,
       temperature: opciones.temperatura ?? 0.2,
       max_tokens: opciones.max_tokens ?? 4096,
@@ -145,9 +135,8 @@ async function llamarGroq(mensajes, opciones = {}) {
   const keyPrincipal = keys[0];
   const tieneDos = numKeys >= 2;
 
-  // Única declaración de opts en esta función (evitar duplicado que provoca SyntaxError en producción).
   const opts = {
-    modelo: opciones.modelo || 'openai/gpt-oss-120b',
+    modelo: opciones.modelo || MODELO_COMPOUND,
     temperatura: opciones.temperatura ?? 0.2,
     max_tokens: opciones.max_tokens ?? 4096,
   };
@@ -161,9 +150,7 @@ async function llamarGroq(mensajes, opciones = {}) {
     if (idxBC3 < keysCompletas.length && keysCompletas[idxBC3]) {
       const apiKeyBC3 = keysCompletas[idxBC3];
       let ultimoError = null;
-      // Si la llave BC3 es la de compound, forzar modelo groq/compound (no usar el por defecto openai/gpt-oss-120b).
-      const modeloBC3 = (llaveBC3 === llaveCompuesto) ? MODELO_COMPOUND : (getModeloParaLlave(llaveBC3) || opts.modelo);
-      const optsBC3 = { ...opts, modelo: modeloBC3 };
+      const optsBC3 = { ...opts, modelo: MODELO_COMPOUND };
       for (let r = 0; r < MAX_REINTENTOS_TPM_MISMA_LLAVE; r++) {
         try {
           return await llamarGroqConClave(apiKeyBC3, mensajes, optsBC3);
