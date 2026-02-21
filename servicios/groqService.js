@@ -59,14 +59,15 @@ function getModeloParaLlave(numLlave) {
 
 /**
  * Devuelve opts con el modelo de esa llave (si está definido); si no, usa el modelo por defecto de opts.
- * Si el modelo global (GROQ_MODEL) es groq/compound, no usamos meta-llama aunque la llave lo tenga; así GROQ_MODEL manda.
+ * Si el modelo global (GROQ_MODEL) es groq/compound, SIEMPRE usamos compound en todas las llaves;
+ * así no se envía openai/gpt-oss-120b ni meta-llama por variables por llave.
  */
 function optsConModeloParaLlave(opts, numLlave) {
-  let modelo = getModeloParaLlave(numLlave) || opts.modelo;
   const defaultEsCompound = opts.modelo && String(opts.modelo).toLowerCase().includes('groq/compound');
-  if (defaultEsCompound && modelo && String(modelo).toLowerCase().includes('meta-llama')) {
-    modelo = opts.modelo;
+  if (defaultEsCompound) {
+    return { ...opts, modelo: opts.modelo };
   }
+  const modelo = getModeloParaLlave(numLlave) || opts.modelo;
   return { ...opts, modelo };
 }
 

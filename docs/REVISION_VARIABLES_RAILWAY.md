@@ -38,7 +38,7 @@ Si quieres una llave solo para BC3 con compound:
 
 Si **no** pones `GROQ_MODEL_1`, `GROQ_MODEL_2`, `GROQ_MODEL_3`, `GROQ_MODEL_4`, todas las llaves usan el modelo de `GROQ_MODEL` (groq/compound).
 
-**Revisar:** que **ninguna** de estas tenga `meta-llama` ni `llama-4-scout`:
+**Revisar:** que **ninguna** de estas tenga otro modelo distinto de compound (si quieres usar solo compound):
 
 - `GROQ_MODEL_1`
 - `GROQ_MODEL_2`
@@ -46,7 +46,7 @@ Si **no** pones `GROQ_MODEL_1`, `GROQ_MODEL_2`, `GROQ_MODEL_3`, `GROQ_MODEL_4`, 
 - `GROQ_MODEL_4`
 - `GROQ_MODEL_LLAVE_1` … `GROQ_MODEL_LLAVE_4`
 
-Si alguna tiene meta-llama, **bórrala** o cámbiala a `groq/compound`. Con el código actual, si `GROQ_MODEL=groq/compound`, el backend ignora meta-llama en esas llaves, pero es más claro no tenerlas.
+Si alguna tiene `meta-llama`, `llama-4-scout` o `openai/gpt-oss-120b`, **bórrala** o cámbiala a `groq/compound`. Con el código actual, si `GROQ_MODEL=groq/compound`, el backend usa **siempre** compound en todas las llaves y ignora el valor por llave; aun así, es más claro no tener variables que apunten a otros modelos.
 
 ---
 
