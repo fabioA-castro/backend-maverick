@@ -57,9 +57,16 @@ function getModeloParaLlave(numLlave) {
   return (process.env['GROQ_MODEL_' + numLlave] || process.env['GROQ_MODEL_LLAVE_' + numLlave] || '').trim();
 }
 
-/** Devuelve opts con el modelo de esa llave (si está definido); si no, usa el modelo por defecto de opts. */
+/**
+ * Devuelve opts con el modelo de esa llave (si está definido); si no, usa el modelo por defecto de opts.
+ * Si el modelo global (GROQ_MODEL) es groq/compound, no usamos meta-llama aunque la llave lo tenga; así GROQ_MODEL manda.
+ */
 function optsConModeloParaLlave(opts, numLlave) {
-  const modelo = getModeloParaLlave(numLlave) || opts.modelo;
+  let modelo = getModeloParaLlave(numLlave) || opts.modelo;
+  const defaultEsCompound = opts.modelo && String(opts.modelo).toLowerCase().includes('groq/compound');
+  if (defaultEsCompound && modelo && String(modelo).toLowerCase().includes('meta-llama')) {
+    modelo = opts.modelo;
+  }
   return { ...opts, modelo };
 }
 
