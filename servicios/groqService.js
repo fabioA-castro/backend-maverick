@@ -35,6 +35,15 @@ function getLlaveSoloBC3() {
   return n >= 1 && n <= MAX_LLAVES ? n : null;
 }
 
+/** Primera llave (1-4) que tiene modelo groq/compuesto; para creación de JSON/árbol BC3 (muchos tokens). */
+function getLlaveCompuesto() {
+  for (let n = 1; n <= MAX_LLAVES; n++) {
+    const m = getModeloParaLlave(n);
+    if (m && m.toLowerCase().includes('groq/compuesto')) return n;
+  }
+  return null;
+}
+
 /**
  * Modelo por llave (1-4). Variables: GROQ_MODEL_1, GROQ_MODEL_2, GROQ_MODEL_3, GROQ_MODEL_4.
  * Ejemplo: Llave 1 para BC3 (muchos tokens) → GROQ_MODEL_1=groq/compuesto
@@ -113,9 +122,10 @@ async function llamarGroq(mensajes, opciones = {}) {
   const llaveSoloBC3 = getLlaveSoloBC3();
   const esArbolBC3 = !!opciones.esArbolBC3;
 
-  // Una llave dedicada solo a BC3: las demás peticiones no la usan.
-  if (llaveSoloBC3 != null && !esArbolBC3) {
-    keys = keys.filter((_, i) => i !== llaveSoloBC3 - 1);
+  // La llave de BC3 (GROQ_LLAVE_SOLO_BC3 o la que tiene groq/compuesto) solo se usa para creación JSON/árbol; el resto no la usa.
+  const llaveSoloParaBC3 = llaveSoloBC3 ?? getLlaveCompuesto();
+  if (llaveSoloParaBC3 != null && !esArbolBC3) {
+    keys = keys.filter((_, i) => i !== llaveSoloParaBC3 - 1);
   }
   const numKeys = keys.length;
   if (numKeys === 0) {
@@ -131,14 +141,15 @@ async function llamarGroq(mensajes, opciones = {}) {
     max_tokens: opciones.max_tokens ?? 4096,
   };
 
-  // Petición de árbol BC3 con llave dedicada: usar SOLO esa llave. Sin fallback a otras (evita conflictos).
-  if (esArbolBC3 && llaveSoloBC3 != null) {
+  // Creación de JSON/árbol BC3: usar llave con groq/compuesto (muchos tokens) o la dedicada GROQ_LLAVE_SOLO_BC3.
+  const llaveBC3 = llaveSoloBC3 ?? getLlaveCompuesto();
+  if (esArbolBC3 && llaveBC3 != null) {
     const keysCompletas = obtenerLlaves();
-    const idxBC3 = llaveSoloBC3 - 1;
+    const idxBC3 = llaveBC3 - 1;
     if (idxBC3 < keysCompletas.length && keysCompletas[idxBC3]) {
       const apiKeyBC3 = keysCompletas[idxBC3];
       let ultimoError = null;
-      const optsBC3 = optsConModeloParaLlave(opts, llaveSoloBC3);
+      const optsBC3 = optsConModeloParaLlave(opts, llaveBC3);
       for (let r = 0; r < MAX_REINTENTOS_TPM_MISMA_LLAVE; r++) {
         try {
           return await llamarGroqConClave(apiKeyBC3, mensajes, optsBC3);
@@ -146,12 +157,12 @@ async function llamarGroq(mensajes, opciones = {}) {
           ultimoError = e;
           const msg = e?.message || '';
           if (esTPD(msg)) {
-            console.warn('[Groq] Llave solo BC3', llaveSoloBC3, 'TPD agotado; no se usa otra llave.');
+            console.warn('[Groq] Llave BC3', llaveBC3, 'TPD agotado; no se usa otra llave.');
             throw new Error((ultimoError?.message || msg) + ' (llave BC3 sin cupo).');
           }
           const seg = parsearRetrySegundos(msg);
           if (seg > 0 && esRateLimit(msg)) {
-            console.warn('[Groq] Llave solo BC3', llaveSoloBC3, 'límite TPM; esperando', seg, 's…');
+            console.warn('[Groq] Llave BC3', llaveBC3, 'límite TPM; esperando', seg, 's…');
             await sleep(seg * 1000);
           } else throw e;
         }
@@ -268,4 +279,4 @@ async function llamarGroq(mensajes, opciones = {}) {
   }
 }
 
-module.exports = { llamarGroq, getNumLlaves, getModeloParaLlave };
+module.exports = { llamarGroq, getNumLlaves, getModeloParaLlave, getLlaveCompuesto };

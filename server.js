@@ -27,6 +27,8 @@ if (numLlaves > 0 && groqService.getModeloParaLlave) {
     const modelo = groqService.getModeloParaLlave(n);
     if (modelo) console.log(`  Llave ${n} → modelo: ${modelo}`);
   }
+  const llaveCompuesto = groqService.getLlaveCompuesto && groqService.getLlaveCompuesto();
+  if (llaveCompuesto) console.log(`Creación JSON/árbol BC3 → Llave ${llaveCompuesto} (groq/compuesto)`);
 }
 
 try { fs.mkdirSync(path.join(__dirname, 'logs'), { recursive: true }); } catch (_) {}
