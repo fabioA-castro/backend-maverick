@@ -17,6 +17,15 @@ let roundRobinIndex = 0;
 /** Índice para round-robin entre llaves BC3 (cuando GROQ_LLAVE_SOLO_BC3=2,4). */
 let roundRobinBC3Index = 0;
 
+/** Override desde la app: solo usar estas llaves (1-4). null = usar todas las configuradas. POST /llaves con { "solo_llaves": [4] }. */
+let llavesActivasOverride = null;
+function setLlavesActivas(numeros) {
+  llavesActivasOverride = Array.isArray(numeros) && numeros.length > 0 ? numeros.filter(n => n >= 1 && n <= MAX_LLAVES) : null;
+}
+function getLlavesActivas() {
+  return llavesActivasOverride;
+}
+
 /** Construye el array de llaves desde env. [0]=llave1, [1]=llave2, etc. */
 function obtenerLlaves() {
   const key1 = (process.env.CLAVE_API_GROQ_2 || process.env.GROQ_API_KEY_2 || process.env.CLAVE_DE_API_DE_GROQ_2 || process.env['CLAVE DE API DE GROQ 2'] || '').trim();
@@ -178,17 +187,20 @@ async function llamarGroqConClave(apiKey, mensajes, opciones) {
 }
 
 async function llamarGroq(mensajes, opciones = {}) {
-  let keys = obtenerLlaves();
+  const allKeys = obtenerLlaves();
+  const activas = getLlavesActivas() || [1, 2, 3, 4].filter(n => n <= allKeys.length && allKeys[n - 1]);
+  let keys = activas.map(n => allKeys[n - 1]).filter(Boolean);
+  const keyNumeros = activas.filter((_, i) => keys[i]); // 1-based key number for keys[i]
   const llavesBC3 = getLlavesBC3() ?? (getLlaveCompuesto() != null ? [getLlaveCompuesto()] : null);
   const esArbolBC3 = !!opciones.esArbolBC3;
 
-  // Para peticiones BC3 usamos solo llaves BC3 (bloque más abajo). Para el resto, usamos todas las llaves en round-robin (incluida la 4).
   const numKeys = keys.length;
   if (numKeys === 0) {
-    throw new Error('Ninguna llave Groq configurada (GROQ_API_KEY, GROQ_API_KEY_2, etc.)');
+    throw new Error('Ninguna llave Groq configurada o todas están bloqueadas desde la app (GET /llaves → POST /llaves para activar).');
   }
   const keyPrincipal = keys[0];
   const tieneDos = numKeys >= 2;
+  const numLlaveFor = (idx) => (keyNumeros[idx] != null ? keyNumeros[idx] : idx + 1);
 
   const opts = {
     modelo: opciones.modelo || MODELO_COMPOUND,
@@ -252,10 +264,11 @@ async function llamarGroq(mensajes, opciones = {}) {
   }
 
   // Rotación por bloque (árbol BC3): la app envía INDICE_BLOQUE; usamos llave (indice % numKeys)+1. Si falla por TPD/TPM, probamos las demás.
-  const llaveForzada = opciones.llaveForzada >= 1 && opciones.llaveForzada <= numKeys ? opciones.llaveForzada : null;
+  const llaveForzada = opciones.llaveForzada >= 1 && opciones.llaveForzada <= MAX_LLAVES ? opciones.llaveForzada : null;
   if (tieneDos && llaveForzada != null) {
-    const apiKeyPrimera = keys[llaveForzada - 1];
-    const otrasIndices = [...Array(numKeys).keys()].filter(i => i !== llaveForzada - 1);
+    const idxForzada = keyNumeros.indexOf(llaveForzada) >= 0 ? keyNumeros.indexOf(llaveForzada) : 0;
+    const apiKeyPrimera = keys[idxForzada];
+    const otrasIndices = [...Array(numKeys).keys()].filter(i => i !== idxForzada);
     let lastRetry = 0;
     let ultimoError = null;
     // TPD (tokens/día): no sirve esperar; probar la otra llave de inmediato.
@@ -325,7 +338,7 @@ async function llamarGroq(mensajes, opciones = {}) {
     for (let i = 0; i < numKeys; i++) {
       const idx = (roundRobinIndex + i) % numKeys;
       const apiKey = keys[idx];
-      const numLlave = idx + 1;
+      const numLlave = numLlaveFor(idx);
       const optsLlave = optsConModeloParaLlave(opts, numLlave);
       console.log('[Groq] Completar (no BC3): usando llave', numLlave);
       if (numLlave === 4) console.log('[Groq] >>> Llave 4 en uso (round-robin) <<<');
@@ -356,4 +369,12 @@ async function llamarGroq(mensajes, opciones = {}) {
   }
 }
 
-module.exports = { llamarGroq, getNumLlaves, getModeloParaLlave, getLlaveCompuesto, getLlavesBC3 };
+/** Para GET /llaves: lista de llaves configuradas (1-4) y cuáles están activas (por defecto todas; si la app envió POST /llaves solo_llaves, solo esas). */
+function getInfoLlaves() {
+  const allKeys = obtenerLlaves();
+  const configuradas = [1, 2, 3, 4].filter(n => allKeys[n - 1]).map(n => ({ numero: n, configurada: true }));
+  const activas = getLlavesActivas() || configuradas.map(c => c.numero);
+  return { llaves: configuradas, activas };
+}
+
+module.exports = { llamarGroq, getNumLlaves, getModeloParaLlave, getLlaveCompuesto, getLlavesBC3, getInfoLlaves, setLlavesActivas, getLlavesActivas };
