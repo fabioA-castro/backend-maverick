@@ -100,6 +100,13 @@ function esTPD(mensaje) {
   return m.includes('tokens per day') || m.includes('tokens por día') || m.includes('tpd');
 }
 
+/** True si el error es 413 / body demasiado grande (probamos siguiente llave BC3 por si reparte uso). */
+function es413(mensaje) {
+  if (!mensaje || typeof mensaje !== 'string') return false;
+  const m = mensaje.toLowerCase();
+  return m.includes('demasiado grande') || m.includes('too large') || m.includes('413') || m.includes('payload too large');
+}
+
 async function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
@@ -171,7 +178,7 @@ async function llamarGroq(mensajes, opciones = {}) {
     max_tokens: opciones.max_tokens ?? 4096,
   };
 
-  // Creación de JSON/árbol BC3: usar llaves GROQ_LLAVE_SOLO_BC3 (ej. "2,4") o la que tiene groq/compuesto; rotación entre ellas.
+  // Creación de JSON/árbol BC3: SOLO llaves GROQ_LLAVE_SOLO_BC3 (ej. 2,4). Si 2 y 4 fallan, no se usa ninguna otra llave; se pausa hasta nueva orden.
   const llaveCompuesto = getLlaveCompuesto();
   const llavesBC3ParaPeticion = llavesBC3 && llavesBC3.length > 0 ? llavesBC3 : (llaveCompuesto != null ? [llaveCompuesto] : null);
   if (esArbolBC3 && llavesBC3ParaPeticion != null && llavesBC3ParaPeticion.length > 0) {
@@ -180,7 +187,8 @@ async function llamarGroq(mensajes, opciones = {}) {
     if (indicesBC3.length > 0) {
       const optsBC3 = { ...opts, modelo: MODELO_COMPOUND };
       let ultimoError = null;
-      // Round-robin entre llaves BC3 para repartir carga (ej. 2 y 4).
+      const numerosBC3 = indicesBC3.map(i => i + 1).join(', ');
+      // Round-robin solo entre llaves BC3 (ej. 2 y 4). Nunca se llama a llaves 1 ni 3 para BC3.
       const numBC3 = indicesBC3.length;
       const orden = [...Array(numBC3)].map((_, k) => indicesBC3[(roundRobinBC3Index + k) % numBC3]);
       for (const idx of orden) {
@@ -196,7 +204,11 @@ async function llamarGroq(mensajes, opciones = {}) {
             const msg = e?.message || '';
             if (esTPD(msg)) {
               console.warn('[Groq] Llave BC3', numLlave, 'TPD agotado; probando siguiente llave BC3.');
-              break; // salir del for r, probar siguiente llave en orden
+              break;
+            }
+            if (es413(msg)) {
+              console.warn('[Groq] Llave BC3', numLlave, '413 body demasiado grande; probando siguiente llave BC3.');
+              break;
             }
             const seg = parsearRetrySegundos(msg);
             if (seg > 0 && esRateLimit(msg)) {
@@ -208,7 +220,9 @@ async function llamarGroq(mensajes, opciones = {}) {
           }
         }
       }
-      throw new Error((ultimoError?.message || 'Llaves BC3 sin cupo o fallo.') + '');
+      const mensajePausa = `Llaves BC3 (${numerosBC3}) no disponibles. No se usan otras llaves; pausa hasta nueva orden. ${ultimoError?.message || ''}`;
+      console.warn('[Groq]', mensajePausa);
+      throw new Error(mensajePausa);
     }
   }
 
