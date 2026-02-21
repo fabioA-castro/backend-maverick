@@ -1,7 +1,21 @@
 /**
  * Lógica del endpoint POST /completar.
  * Acepta: { prompt } o { promptId, datos } (datos.descripcion o body.descripcion).
+ *
+ * Peticiones BC3 (árbol + JSON por bloques) → solo llaves 2 y 4 (GROQ_LLAVE_SOLO_BC3=2,4).
+ * Resto (variantes, etc.) → llaves 1 y 3.
  */
+const PROMPT_IDS_BC3 = new Set([
+  'arbol_jerarquico_bc3',
+  'bc3_json_bloque_inicio',
+  'bc3_json_bloque_intermedio',
+  'bc3_json_bloque_final',
+  'bc3_a_json_estructurado',
+]);
+
+function esPeticionBC3(promptId) {
+  return !!promptId && PROMPT_IDS_BC3.has(promptId);
+}
 
 const fs = require('fs');
 const path = require('path');
@@ -39,11 +53,11 @@ async function completar(req, res) {
     const promptId = req.body?.promptId || null;
     const datos = req.body?.datos || {};
     const modeloElegido = seleccionarModelo(promptId, config.groq?.modelo);
-    // Arbol BC3 devuelve JSON grande por chunk; más max_tokens reduce truncado ("Unterminated array")
-    const maxTokens = (promptId === 'arbol_jerarquico_bc3')
+    const esBC3 = esPeticionBC3(promptId);
+    // Peticiones BC3 (árbol + JSON por bloques): más max_tokens para evitar truncado ("Unterminated array")
+    const maxTokens = esBC3
       ? (config.groq?.max_tokens_arbol_bc3 ?? 8192)
       : (config.groq?.max_tokens ?? 4096);
-    // Rotación por bloque en árbol BC3 (solo si no hay GROQ_LLAVE_SOLO_BC3): bloque 0→Llave 1, 1→2, … reparto entre numLlaves
     const numLlaves = groqService.getNumLlaves ? groqService.getNumLlaves() : 2;
     const indiceBloque = datos.INDICE_BLOQUE != null ? parseInt(datos.INDICE_BLOQUE, 10) : null;
     const llaveForzada = (promptId === 'arbol_jerarquico_bc3' && Number.isInteger(indiceBloque) && indiceBloque >= 0 && numLlaves >= 2)
@@ -55,19 +69,19 @@ async function completar(req, res) {
           temperatura: config.groq.temperatura,
           max_tokens: maxTokens,
           llaveForzada: llaveForzada || undefined,
-          esArbolBC3: promptId === 'arbol_jerarquico_bc3',
+          esArbolBC3: esBC3,
         }
-      : { modelo: modeloElegido, esArbolBC3: promptId === 'arbol_jerarquico_bc3' };
+      : { modelo: modeloElegido, esArbolBC3: esBC3 };
 
-    if (promptId === 'arbol_jerarquico_bc3' && Number.isInteger(indiceBloque) && indiceBloque >= 0) {
-      console.log(`[BC3] Bloque ${indiceBloque} - IA trabajando...`);
+    if (esBC3 && promptId) {
+      console.log(`[BC3] ${promptId}${Number.isInteger(indiceBloque) ? ` bloque ${indiceBloque}` : ''} - IA trabajando...`);
     }
     const text = await groqService.llamarGroq(
       [{ role: 'user', content: prompt }],
       opts
     );
-    if (promptId === 'arbol_jerarquico_bc3' && Number.isInteger(indiceBloque) && indiceBloque >= 0) {
-      console.log(`[BC3] Bloque ${indiceBloque} - IA terminó.`);
+    if (esBC3 && promptId) {
+      console.log(`[BC3] ${promptId}${Number.isInteger(indiceBloque) ? ` bloque ${indiceBloque}` : ''} - IA terminó.`);
     }
     res.json({ text });
   } catch (e) {
