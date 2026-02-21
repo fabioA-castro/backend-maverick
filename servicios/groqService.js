@@ -129,18 +129,33 @@ async function llamarGroqConClave(apiKey, mensajes, opciones) {
       `Reduce el tamaño del prompt o del bloque BC3 (máx. recomendado ~${(GROQ_MAX_BODY_BYTES / 1024).toFixed(0)} KB).`
     );
   }
-  const response = await fetch(GROQ_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-    },
-    body: bodyStr,
-  });
+  let response;
+  try {
+    response = await fetch(GROQ_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: bodyStr,
+    });
+  } catch (err) {
+    const msg = err?.message || String(err);
+    throw new Error('Error de red al llamar a Groq: ' + msg);
+  }
 
-  const data = await response.json();
+  let data;
+  try {
+    const text = await response.text();
+    data = text ? JSON.parse(text) : {};
+  } catch (_) {
+    throw new Error(
+      'Groq devolvió respuesta no JSON (status ' + response.status + '). Puede ser caída temporal del servicio.'
+    );
+  }
+
   if (!response.ok) {
-    const msg = data?.error?.message || 'Error Groq';
+    const msg = (data && data.error && data.error.message) ? data.error.message : 'Error Groq';
     const es413 = response.status === 413 || /entidad de solicitud es demasiado grande|request entity too large|payload too large/i.test(msg);
     if (es413) {
       console.warn('[Groq] 413 body demasiado grande. Reduce el bloque BC3 en la app o sube GROQ_MAX_BODY_BYTES en Railway.');
@@ -152,7 +167,9 @@ async function llamarGroqConClave(apiKey, mensajes, opciones) {
     throw new Error(msg);
   }
 
-  return data?.choices?.[0]?.message?.content?.trim() || '';
+  return (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content)
+    ? String(data.choices[0].message.content).trim()
+    : '';
 }
 
 async function llamarGroq(mensajes, opciones = {}) {
