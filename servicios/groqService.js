@@ -17,10 +17,18 @@ let roundRobinIndex = 0;
 /** Índice para round-robin entre llaves BC3 (cuando GROQ_LLAVE_SOLO_BC3=2,4). */
 let roundRobinBC3Index = 0;
 
-/** Override desde la app: solo usar estas llaves (1-4). null = usar todas las configuradas. POST /llaves con { "solo_llaves": [4] }. */
-let llavesActivasOverride = null;
+/** Override desde la app: undefined = por defecto solo llave 1; null = todas; [1,2] = solo esas. El cliente no toca Railway. */
+let llavesActivasOverride = undefined;
 function setLlavesActivas(numeros) {
-  llavesActivasOverride = Array.isArray(numeros) && numeros.length > 0 ? numeros.filter(n => n >= 1 && n <= MAX_LLAVES) : null;
+  if (numeros === null) {
+    llavesActivasOverride = null;
+    return;
+  }
+  if (Array.isArray(numeros) && numeros.length > 0) {
+    llavesActivasOverride = numeros.filter(n => n >= 1 && n <= MAX_LLAVES);
+    return;
+  }
+  llavesActivasOverride = null;
 }
 function getLlavesActivas() {
   return llavesActivasOverride;
@@ -188,9 +196,10 @@ async function llamarGroqConClave(apiKey, mensajes, opciones) {
 
 async function llamarGroq(mensajes, opciones = {}) {
   const allKeys = obtenerLlaves();
-  const activas = getLlavesActivas() || [1, 2, 3, 4].filter(n => n <= allKeys.length && allKeys[n - 1]);
+  const override = getLlavesActivas();
+  const activas = override === undefined ? [1] : (override === null ? [1, 2, 3, 4].filter(n => n <= allKeys.length && allKeys[n - 1]) : override);
   let keys = activas.map(n => allKeys[n - 1]).filter(Boolean);
-  const keyNumeros = activas.filter((_, i) => keys[i]); // 1-based key number for keys[i]
+  const keyNumeros = activas.filter((_, i) => keys[i]);
   const llavesBC3 = getLlavesBC3() ?? (getLlaveCompuesto() != null ? [getLlaveCompuesto()] : null);
   const esArbolBC3 = !!opciones.esArbolBC3;
 
@@ -369,11 +378,15 @@ async function llamarGroq(mensajes, opciones = {}) {
   }
 }
 
-/** Para GET /llaves: lista de llaves configuradas (1-4) y cuáles están activas (por defecto todas; si la app envió POST /llaves solo_llaves, solo esas). */
+/** Para GET /llaves: lista de llaves 1-4 con nombre por defecto groq_llave_1..4; por defecto solo llave 1 activa. */
 function getInfoLlaves() {
   const allKeys = obtenerLlaves();
-  const configuradas = [1, 2, 3, 4].filter(n => allKeys[n - 1]).map(n => ({ numero: n, configurada: true }));
-  const activas = getLlavesActivas() || configuradas.map(c => c.numero);
+  const configuradas = [1, 2, 3, 4].filter(n => allKeys[n - 1]).map(n => {
+    const nombre = (process.env['GROQ_LLAVE_' + n + '_NOMBRE'] || process.env['GROQ_LLAVE_NOMBRE_' + n] || ('groq_llave_' + n)).trim();
+    return { numero: n, configurada: true, nombre: nombre || 'groq_llave_' + n };
+  });
+  const override = getLlavesActivas();
+  const activas = override === undefined ? [1] : (override === null ? configuradas.map(c => c.numero) : override);
   return { llaves: configuradas, activas };
 }
 

@@ -23,9 +23,12 @@ function postLlaves(req, res) {
       return res.json({ ok: true, activas: null, mensaje: 'Se usan de nuevo todas las llaves configuradas.' });
     }
     const solo = body.solo_llaves || body.activas;
-    if (Array.isArray(solo) && solo.length > 0) {
+    if (Array.isArray(solo)) {
       const numeros = solo.map(n => parseInt(n, 10)).filter(n => n >= 1 && n <= 4);
-      groqService.setLlavesActivas(numeros.length ? numeros : null);
+      if (numeros.length === 0) {
+        return res.status(400).json({ error: 'Debe haber al menos una llave activa. No se pueden desactivar todas.' });
+      }
+      groqService.setLlavesActivas(numeros);
       const info = groqService.getInfoLlaves();
       return res.json({ ok: true, activas: info.activas, mensaje: 'Llaves actualizadas.' });
     }
