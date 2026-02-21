@@ -37,8 +37,9 @@ const rutasCompletar = require('./rutas/completar');
 const rutasPrompt = require('./rutas/promptRutas');
 
 const app = express();
-// Límite alto para permitir BC3 grande en prompt arbol_jerarquico_bc3 (ej. 120k caracteres + plantilla)
-app.use(express.json({ limit: '15mb' }));
+// Límite de body para POST /completar (BC3 puede enviar bloques grandes). Variable BODY_LIMIT_MB o por defecto 25mb.
+const bodyLimitMb = Math.min(50, Math.max(15, parseInt(process.env.BODY_LIMIT_MB || '25', 10) || 25));
+app.use(express.json({ limit: `${bodyLimitMb}mb` }));
 
 // Montar rutas
 app.use('/', rutasCompletar);

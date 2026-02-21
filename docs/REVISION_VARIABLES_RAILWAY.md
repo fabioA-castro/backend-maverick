@@ -65,7 +65,14 @@ Si alguna tiene `meta-llama`, `llama-4-scout` o `openai/gpt-oss-120b`, **bórral
 
 Así la Llave 2 (GROQ_API_KEY) se usará solo para BC3; las otras llaves (1 y 3) para el resto de peticiones.
 
-## 5. Otras (opcionales)
+## 5. Límites de tamaño (si ves "la entidad de solicitud es demasiado grande")
+
+| Variable               | Valor por defecto | Uso |
+|------------------------|-------------------|-----|
+| `BODY_LIMIT_MB`        | `25`              | Límite en MB del body que acepta el backend (POST /completar). Si la app envía bloques BC3 muy grandes, sube a 30–50. |
+| `GROQ_MAX_BODY_BYTES`  | `900000` (~900 KB)| Tamaño máximo del body que enviamos a Groq. Si Groq devuelve 413, reduce el tamaño del bloque en la app (p. ej. `MAX_BC3_CHARS_ARBOL_LLM`) o sube este valor (máx. 2MB). |
+
+## 6. Otras (opcionales)
 
 | Variable              | Uso |
 |-----------------------|-----|
@@ -74,7 +81,7 @@ Así la Llave 2 (GROQ_API_KEY) se usará solo para BC3; las otras llaves (1 y 3)
 
 ---
 
-## 6. Checklist rápida
+## 7. Checklist rápida
 
 - [ ] `GROQ_MODEL=groq/compound` (o `MODELO_DE_GROQ=groq/compound`).
 - [ ] No existe `GROQ_MODEL_1`, `_2`, `_3` o `_4` con valor `meta-llama` ni `llama-4-scout`.

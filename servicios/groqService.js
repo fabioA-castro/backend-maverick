@@ -94,20 +94,31 @@ async function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+/** Límite aproximado del body que enviamos a Groq (evita 413 Request Entity Too Large). Variable GROQ_MAX_BODY_BYTES, por defecto 900000 (~900KB). */
+const GROQ_MAX_BODY_BYTES = Math.min(2 * 1024 * 1024, Math.max(100000, parseInt(process.env.GROQ_MAX_BODY_BYTES || '900000', 10) || 900000));
+
 async function llamarGroqConClave(apiKey, mensajes, opciones) {
   const modelo = opciones.modelo || MODELO_COMPOUND;
+  const body = {
+    model: modelo,
+    messages: mensajes,
+    temperature: opciones.temperatura ?? 0.2,
+    max_tokens: opciones.max_tokens ?? 4096,
+  };
+  const bodyStr = JSON.stringify(body);
+  if (bodyStr.length > GROQ_MAX_BODY_BYTES) {
+    throw new Error(
+      `La solicitud a Groq es demasiado grande (${(bodyStr.length / 1024).toFixed(0)} KB). ` +
+      `Reduce el tamaño del prompt o del bloque BC3 (máx. recomendado ~${(GROQ_MAX_BODY_BYTES / 1024).toFixed(0)} KB).`
+    );
+  }
   const response = await fetch(GROQ_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${apiKey}`,
     },
-    body: JSON.stringify({
-      model: modelo,
-      messages: mensajes,
-      temperature: opciones.temperatura ?? 0.2,
-      max_tokens: opciones.max_tokens ?? 4096,
-    }),
+    body: bodyStr,
   });
 
   const data = await response.json();
