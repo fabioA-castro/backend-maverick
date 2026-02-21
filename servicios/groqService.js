@@ -38,7 +38,7 @@ function getLlaveSoloBC3() {
 /**
  * Modelo por llave (1-4). Variables: GROQ_MODEL_1, GROQ_MODEL_2, GROQ_MODEL_3, GROQ_MODEL_4.
  * Ejemplo: Llave 1 para BC3 (muchos tokens) → GROQ_MODEL_1=groq/compuesto
- *          Llave 2 para muchas llamadas → GROQ_MODEL_2=moonshotai/kimi-k2-instruct
+ *          Llave 2 para muchas llamadas → GROQ_MODEL_2=moonshotai/kimi-k2-instruct-0905
  */
 function getModeloParaLlave(numLlave) {
   if (numLlave < 1 || numLlave > MAX_LLAVES) return '';
