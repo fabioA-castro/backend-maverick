@@ -50,20 +50,36 @@ Si alguna tiene `meta-llama`, `llama-4-scout` o `openai/gpt-oss-120b`, **bórral
 
 ---
 
-## 4. Otras (opcionales)
+## 4. Qué llave es cada variable (orden en el backend)
+
+| Número llave | Variables en Railway (nombre de la API key) |
+|--------------|---------------------------------------------|
+| **Llave 1**  | `CLAVE_API_GROQ_2` o `GROQ_API_KEY_2`       |
+| **Llave 2**  | **`GROQ_API_KEY`** o "CLAVE DE API DE GROQ" ← esta es la que sueles ver en la consola |
+| **Llave 3**  | `GROQ_MODELO_1` o `GROQ_API_KEY_3`         |
+| **Llave 4**  | `GROQ_API_KEY_4`                           |
+
+**Crear JSON / árbol BC3:** el backend usa la llave que tenga `groq/compound` (por `GROQ_MODEL_1` etc.) o la que indiques con `GROQ_LLAVE_SOLO_BC3`. Si quieres que **solo** la llave **GROQ_API_KEY** (Llave 2) se use para crear JSON y árbol BC3, añade en Railway:
+
+- **`GROQ_LLAVE_SOLO_BC3=2`**
+
+Así la Llave 2 (GROQ_API_KEY) se usará solo para BC3; las otras llaves (1 y 3) para el resto de peticiones.
+
+## 5. Otras (opcionales)
 
 | Variable              | Uso |
 |-----------------------|-----|
-| `GROQ_LLAVE_SOLO_BC3` | Si quieres fijar qué llave (1–4) se usa solo para BC3. Si pones `GROQ_MODEL_1=groq/compound`, no hace falta. |
+| `GROQ_LLAVE_SOLO_BC3` | Número de llave (1–4) que se usa **solo** para JSON/árbol BC3. Ej.: `2` para usar solo GROQ_API_KEY en BC3. |
 | `MOONSHOT_API_KEY`    | Ya no se usa (Kimi quitado del backend). Puedes borrarla. |
 
 ---
 
-## 5. Checklist rápida
+## 6. Checklist rápida
 
 - [ ] `GROQ_MODEL=groq/compound` (o `MODELO_DE_GROQ=groq/compound`).
 - [ ] No existe `GROQ_MODEL_1`, `_2`, `_3` o `_4` con valor `meta-llama` ni `llama-4-scout`.
 - [ ] Las variables de llaves (`CLAVE_API_GROQ_2`, `GROQ_API_KEY`, `GROQ_MODELO_1`, etc.) tienen claves `gsk_...`, no nombres de modelo.
 - [ ] (Opcional) `GROQ_MODEL_1=groq/compound` si quieres que la Llave 1 sea explícitamente compound para BC3.
+- [ ] (Opcional) `GROQ_LLAVE_SOLO_BC3=2` si quieres que **solo** la llave GROQ_API_KEY (Llave 2) se use para crear JSON/árbol BC3.
 
 Tras cambiar variables, **Actualizar variables** y, si hace falta, **redesplegar** el servicio.
