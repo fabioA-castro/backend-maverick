@@ -1,9 +1,6 @@
 /**
  * Lógica del endpoint POST /completar.
- * Acepta: { prompt } o { promptId, datos } (datos.descripcion o body.descripcion).
- *
- * Peticiones BC3 (árbol + JSON por bloques) → solo llaves 2 y 4 (GROQ_LLAVE_SOLO_BC3=2,4).
- * Resto (variantes, etc.) → llaves 1 y 3.
+ * Acepta: { prompt } o { promptId, datos }. El backend llama a Kimi.
  */
 const PROMPT_IDS_BC3 = new Set([
   'arbol_jerarquico_bc3',
@@ -19,10 +16,9 @@ function esPeticionBC3(promptId) {
 
 const fs = require('fs');
 const path = require('path');
-const groqService = require('../servicios/groqService');
+const kimiService = require('../servicios/kimiService');
 const promptsData = require('../data/promptsData');
 const config = require('../configLoader');
-const { seleccionarModelo } = require('../servicios/modeloSelector');
 
 function logError(mensaje, err) {
   try {
@@ -52,42 +48,33 @@ async function completar(req, res) {
   try {
     const promptId = req.body?.promptId || null;
     const datos = req.body?.datos || {};
-    const modeloElegido = seleccionarModelo(promptId, config.groq?.modelo);
+    const modelo = config.kimi?.modelo || process.env.KIMI_MODEL || 'moonshotai/kimi-k2-instruct-0905';
     const esBC3 = esPeticionBC3(promptId);
-    // Peticiones BC3 (árbol + JSON por bloques): más max_tokens para evitar truncado ("Unterminated array")
     const maxTokens = esBC3
-      ? (config.groq?.max_tokens_arbol_bc3 ?? 8192)
-      : (config.groq?.max_tokens ?? 4096);
-    const numLlaves = groqService.getNumLlaves ? groqService.getNumLlaves() : 2;
-    const indiceBloque = datos.INDICE_BLOQUE != null ? parseInt(datos.INDICE_BLOQUE, 10) : null;
-    const llaveForzada = (promptId === 'arbol_jerarquico_bc3' && Number.isInteger(indiceBloque) && indiceBloque >= 0 && numLlaves >= 2)
-      ? ((indiceBloque % numLlaves) + 1)
-      : null;
-    const opts = config.groq
-      ? {
-          modelo: modeloElegido,
-          temperatura: config.groq.temperatura,
-          max_tokens: maxTokens,
-          llaveForzada: llaveForzada || undefined,
-          esArbolBC3: esBC3,
-        }
-      : { modelo: modeloElegido, esArbolBC3: esBC3 };
+      ? (config.kimi?.max_tokens_arbol_bc3 ?? 8192)
+      : (config.kimi?.max_tokens ?? 4096);
+    const opts = {
+      modelo,
+      temperatura: config.kimi?.temperatura ?? 0.2,
+      max_tokens: maxTokens,
+      esArbolBC3: esBC3,
+    };
 
     if (esBC3 && promptId) {
-      console.log(`[BC3] ${promptId}${Number.isInteger(indiceBloque) ? ` bloque ${indiceBloque}` : ''} - IA trabajando...`);
+      console.log(`[BC3] ${promptId}${datos.INDICE_BLOQUE != null ? ` bloque ${datos.INDICE_BLOQUE}` : ''} - IA trabajando...`);
     }
-    const text = await groqService.llamarGroq(
+    const text = await kimiService.llamarKimi(
       [{ role: 'user', content: prompt }],
       opts
     );
     if (esBC3 && promptId) {
-      console.log(`[BC3] ${promptId}${Number.isInteger(indiceBloque) ? ` bloque ${indiceBloque}` : ''} - IA terminó.`);
+      console.log(`[BC3] ${promptId}${datos.INDICE_BLOQUE != null ? ` bloque ${datos.INDICE_BLOQUE}` : ''} - IA terminó.`);
     }
     res.json({ text });
   } catch (e) {
     console.error(e);
     logError('completar:', e);
-    res.status(500).json({ error: e.message || 'Error al llamar a Groq' });
+    res.status(500).json({ error: e.message || 'Error al llamar a Kimi' });
   }
 }
 

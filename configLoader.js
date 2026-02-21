@@ -8,11 +8,11 @@ const path = require('path');
 const CONFIG_PATH = path.join(__dirname, 'config.json');
 
 let config = {
-  groq: {
-    modelo: 'openai/gpt-oss-120b',
+  kimi: {
+    modelo: process.env.KIMI_MODEL || 'moonshotai/kimi-k2-instruct-0905',
     temperatura: 0.2,
     max_tokens: 4096,
-    max_tokens_arbol_bc3: 4096, // limita tokens de salida por petición para no disparar el TPM (límite 8K/min); la app recupera JSON truncado
+    max_tokens_arbol_bc3: 8192,
   },
   modo_desarrollo: false,
 };
@@ -20,8 +20,8 @@ let config = {
 try {
   if (fs.existsSync(CONFIG_PATH)) {
     const loaded = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
-    if (loaded.groq && typeof loaded.groq === 'object') {
-      config.groq = { ...config.groq, ...loaded.groq };
+    if (loaded.kimi && typeof loaded.kimi === 'object') {
+      config.kimi = { ...config.kimi, ...loaded.kimi };
     }
     if (typeof loaded.modo_desarrollo === 'boolean') config.modo_desarrollo = loaded.modo_desarrollo;
   }
@@ -29,12 +29,10 @@ try {
   console.warn('No se pudo cargar config.json:', e.message);
 }
 
-// Railway/entorno: forzar modelo desde variable (GROQ_MODEL, GROQ_MODELO o MODELO_DE_GROQ)
-const modeloEnv = (process.env.GROQ_MODEL || process.env.GROQ_MODELO || process.env.MODELO_DE_GROQ || '').trim();
+const modeloEnv = (process.env.KIMI_MODEL || '').trim();
 if (modeloEnv) {
-  // groq/compuesto (español) = groq/compound
-  config.groq.modelo = modeloEnv.replace(/^groq\/compuesto$/i, 'groq/compound');
-  console.log('Groq modelo desde variable de entorno:', config.groq.modelo);
+  config.kimi.modelo = modeloEnv;
+  console.log('Kimi modelo desde variable de entorno:', config.kimi.modelo);
 }
 
 module.exports = config;

@@ -1,9 +1,7 @@
 /**
- * Backend Presupuestos Kontry + Groq.
- * Configuración en config.json; prompts en prompts.json; rutas y controladores separados.
- *
- * POST /completar  → prompt completo o promptId + datos
- * GET /prompt-masters, GET/PUT /prompt-masters/:id  → listar y editar prompts desde la app
+ * Backend Presupuestos Kontry + Kimi.
+ * POST /completar → prompt o promptId + datos (llama a Kimi).
+ * GET /prompt-masters, GET/PUT /prompt-masters/:id
  */
 
 const express = require('express');
@@ -12,26 +10,22 @@ const path = require('path');
 const config = require('./configLoader');
 const promptsData = require('./data/promptsData');
 
-// Comprobar que lo esencial está cargado (sin tirar el servidor)
 const configPath = path.join(__dirname, 'config.json');
 const promptsDir = path.join(__dirname, 'prompts');
 if (!fs.existsSync(configPath)) console.warn('Aviso: config.json no encontrado; se usan valores por defecto.');
 if (!fs.existsSync(promptsDir)) console.warn('Aviso: carpeta prompts/ no encontrada; se usará prompts.json si existe.');
 const numPrompts = promptsData.getList().length;
 console.log(`Config cargada. Prompts cargados: ${numPrompts}`);
-const groqService = require('./servicios/groqService');
-const numLlaves = groqService.getNumLlaves ? groqService.getNumLlaves() : 0;
-console.log(`Llaves Groq configuradas: ${numLlaves} (1: GROQ_API_KEY, 2: GROQ_API_KEY_2, 3: GROQ_API_KEY_3, 4: GROQ_API_KEY_4)`);
-if (numLlaves > 0 && groqService.getModeloParaLlave) {
-  for (let n = 1; n <= numLlaves; n++) {
-    const modelo = groqService.getModeloParaLlave(n);
-    if (modelo) console.log(`  Llave ${n} → modelo: ${modelo}`);
-  }
-  const llavesBC3 = groqService.getLlavesBC3 && groqService.getLlavesBC3();
+
+const kimiService = require('./servicios/kimiService');
+const numLlaves = kimiService.getNumLlaves ? kimiService.getNumLlaves() : 0;
+console.log(`Llaves Kimi configuradas: ${numLlaves} (KIMI_API_KEY, KIMI_API_KEY_2, KIMI_API_KEY_3, KIMI_API_KEY_4)`);
+if (numLlaves > 0) {
+  const info = kimiService.getInfoLlaves();
+  info.llaves.forEach(l => console.log(`  Llave ${l.numero} → modelo: ${l.modelo}`));
+  const llavesBC3 = kimiService.getLlavesBC3 && kimiService.getLlavesBC3();
   if (llavesBC3 && llavesBC3.length > 0) {
-    console.log(`Creación JSON/árbol BC3 → Llaves ${llavesBC3.join(', ')} (groq/compound)`);
-  } else if (groqService.getLlaveCompuesto && groqService.getLlaveCompuesto()) {
-    console.log(`Creación JSON/árbol BC3 → Llave ${groqService.getLlaveCompuesto()} (groq/compound)`);
+    console.log(`Creación JSON/árbol BC3 → Llaves ${llavesBC3.join(', ')}`);
   }
 }
 
@@ -41,20 +35,17 @@ const rutasCompletar = require('./rutas/completar');
 const rutasPrompt = require('./rutas/promptRutas');
 
 const app = express();
-// Límite de body para POST /completar (BC3 puede enviar bloques grandes). Variable BODY_LIMIT_MB o por defecto 25mb.
 const bodyLimitMb = Math.min(50, Math.max(15, parseInt(process.env.BODY_LIMIT_MB || '25', 10) || 25));
 app.use(express.json({ limit: `${bodyLimitMb}mb` }));
 
-// Montar rutas
 app.use('/', rutasCompletar);
 app.use('/', rutasPrompt);
 
-// Health check
 app.get('/', (req, res) => {
   const list = promptsData.getList().map(p => p.id);
   res.json({
     ok: true,
-    message: 'Backend Groq para Presupuestos Kontry. POST /completar; GET/PUT /prompt-masters.',
+    message: 'Backend Kimi para Presupuestos Kontry. POST /completar; GET/PUT /prompt-masters.',
     promptMasters: list,
   });
 });

@@ -91,6 +91,15 @@ function getLlavesBC3() {
 /** ID del modelo compound en Groq (70K TPM, 250 RPD). */
 const MODELO_COMPOUND = 'groq/compound';
 
+/** Solo estos modelos se envían a la API de Groq; si la variable por llave tiene meta-llama/etc., se usa compound. */
+function modeloGroqPermitido(modelo) {
+  if (!modelo || typeof modelo !== 'string') return false;
+  const m = modelo.trim().toLowerCase();
+  if (m === 'groq/compound' || m === 'groq/compuesto') return true;
+  if (m.startsWith('groq/')) return true;
+  return false;
+}
+
 /** Primera llave (1-4) que tiene modelo groq/compound; para creación de JSON/árbol BC3 (muchos tokens). */
 function getLlaveCompuesto() {
   for (let n = 1; n <= MAX_LLAVES; n++) {
@@ -175,7 +184,8 @@ async function sleep(ms) {
 const GROQ_MAX_BODY_BYTES = Math.min(2 * 1024 * 1024, Math.max(100000, parseInt(process.env.GROQ_MAX_BODY_BYTES || '900000', 10) || 900000));
 
 async function llamarGroqConClave(apiKey, mensajes, opciones) {
-  const modelo = (opciones.modelo && String(opciones.modelo).trim()) || MODELO_COMPOUND;
+  const modeloRaw = (opciones.modelo && String(opciones.modelo).trim()) || MODELO_COMPOUND;
+  const modelo = modeloGroqPermitido(modeloRaw) ? (modeloRaw.toLowerCase().replace(/^groq\/compuesto$/i, 'groq/compound')) : MODELO_COMPOUND;
   if (!llamarGroqConClave._loggedModel) {
     console.log('[Groq] Enviando a la API model:', modelo);
     llamarGroqConClave._loggedModel = true;
