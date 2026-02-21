@@ -22,7 +22,7 @@ function obtenerLlaves() {
   const key1 = (process.env.CLAVE_API_GROQ_2 || process.env.GROQ_API_KEY_2 || process.env.CLAVE_DE_API_DE_GROQ_2 || process.env['CLAVE DE API DE GROQ 2'] || '').trim();
   const key2 = (process.env.GROQ_API_KEY || process.env['CLAVE DE API DE GROQ'] || '').trim();
   const key3 = (process.env.GROQ_MODELO_1 || process.env.GROQ_API_KEY_3 || '').trim();
-  const key4 = (process.env.GROQ_API_KEY_4 || '').trim();
+  const key4 = (process.env.GROQ_API_KEY_4 || process.env.CLAVE_DE_API_DE_GROQ_4 || process.env['CLAVE DE API DE GROQ 4'] || '').trim();
   return [key1, key2, key3, key4].filter(Boolean);
 }
 
@@ -208,6 +208,7 @@ async function llamarGroq(mensajes, opciones = {}) {
         const numLlave = idx + 1;
         const apiKeyBC3 = keysCompletas[idx];
         console.log('[Groq] Completar (si BC3): usando llave', numLlave);
+        if (numLlave === 4) console.log('[Groq] >>> Llave 4 en uso (BC3) <<<');
         for (let r = 0; r < MAX_REINTENTOS_TPM_MISMA_LLAVE; r++) {
           try {
             const resultado = await llamarGroqConClave(apiKeyBC3, mensajes, optsBC3);
@@ -322,6 +323,7 @@ async function llamarGroq(mensajes, opciones = {}) {
       const numLlave = idx + 1;
       const optsLlave = optsConModeloParaLlave(opts, numLlave);
       console.log('[Groq] Completar (no BC3): usando llave', numLlave);
+      if (numLlave === 4) console.log('[Groq] >>> Llave 4 en uso (round-robin) <<<');
       try {
         const resultado = await llamarGroqConClave(apiKey, mensajes, optsLlave);
         roundRobinIndex = (roundRobinIndex + 1) % numKeys;
