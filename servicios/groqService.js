@@ -117,6 +117,10 @@ const GROQ_MAX_BODY_BYTES = Math.min(2 * 1024 * 1024, Math.max(100000, parseInt(
 async function llamarGroqConClave(apiKey, mensajes, opciones) {
   // Siempre usar groq/compound en la API (evita modelos bloqueados por org como meta-llama/llama-4-scout-*).
   const modelo = MODELO_COMPOUND;
+  if (!llamarGroqConClave._loggedModel) {
+    console.log('[Groq] Enviando a la API model:', modelo);
+    llamarGroqConClave._loggedModel = true;
+  }
   const body = {
     model: modelo,
     messages: mensajes,
