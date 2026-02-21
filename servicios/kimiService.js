@@ -1,10 +1,9 @@
 /**
- * Servicio para llamar a la API de Kimi con 1 a 4 llaves.
- * Round-robin entre llaves activas; si una falla por cupo diario (TPD), se prueba la siguiente.
+ * Servicio para llamar a la API de Groq con modelo Kimi (moonshotai/kimi-k2-instruct-0905).
+ * Misma URL y mismas variables que antes: GROQ_API_KEY, GROQ_LLAVE_N_NOMBRE, etc.; solo cambia el modelo.
  */
-
-const KIMI_URL = (process.env.KIMI_API_URL || 'https://kimi-k2.ai/api/v1/chat/completions').trim();
-const KIMI_MODEL = (process.env.KIMI_MODEL || 'moonshotai/kimi-k2-instruct-0905').trim();
+const GROQ_URL = (process.env.GROQ_API_URL || 'https://api.groq.com/openai/v1/chat/completions').trim();
+const KIMI_MODEL = (process.env.KIMI_MODEL || process.env.GROQ_MODEL || 'moonshotai/kimi-k2-instruct-0905').trim();
 const MAX_LLAVES = 4;
 
 let roundRobinIndex = 0;
@@ -26,11 +25,15 @@ function getLlavesActivas() {
   return llavesActivasOverride;
 }
 
+/** Llaves desde Groq (mismos nombres que antes): GROQ_API_KEY, GROQ_API_KEY_2, etc. */
 function getKeyParaSlot(n) {
   if (n < 1 || n > MAX_LLAVES) return '';
-  const k1 = (process.env.KIMI_API_KEY || process.env.KIMI_API_KEY_1 || '').trim();
-  const kn = n === 1 ? k1 : (process.env['KIMI_API_KEY_' + n] || '').trim();
-  return n === 1 ? k1 : kn;
+  const key1 = (process.env.GROQ_API_KEY || process.env['CLAVE DE API DE GROQ'] || '').trim();
+  const key2 = (process.env.GROQ_API_KEY_2 || process.env.CLAVE_DE_API_DE_GROQ_2 || process.env['CLAVE DE API DE GROQ 2'] || '').trim();
+  const key3 = (process.env.GROQ_API_KEY_3 || '').trim();
+  const key4 = (process.env.GROQ_API_KEY_4 || process.env.CLAVE_DE_API_DE_GROQ_4 || process.env['CLAVE DE API DE GROQ 4'] || '').trim();
+  const arr = [key1, key2, key3, key4];
+  return (arr[n - 1] || '').trim();
 }
 
 function obtenerLlaves() {
@@ -43,19 +46,19 @@ function getNumLlaves() {
 
 function getModeloParaLlave(n) {
   if (n < 1 || n > MAX_LLAVES) return KIMI_MODEL;
-  const v = (process.env['KIMI_LLAVE_' + n + '_MODELO'] || '').trim();
+  const v = (process.env['GROQ_LLAVE_' + n + '_MODELO'] || process.env['GROQ_MODEL_' + n] || process.env['KIMI_LLAVE_' + n + '_MODELO'] || '').trim();
   return v || KIMI_MODEL;
 }
 
 function getLlavesBC3() {
-  const v = (process.env.KIMI_LLAVE_SOLO_BC3 || process.env.LLAVE_SOLO_BC3 || '').trim();
+  const v = (process.env.GROQ_LLAVE_SOLO_BC3 || process.env.LLAVE_SOLO_BC3 || '').trim();
   if (!v) return null;
   const partes = v.split(',').map(s => parseInt(s.trim(), 10)).filter(n => n >= 1 && n <= MAX_LLAVES);
   const unicos = [...new Set(partes)];
   return unicos.length > 0 ? unicos : null;
 }
 
-const MAX_BODY_BYTES = Math.min(2 * 1024 * 1024, Math.max(100000, parseInt(process.env.KIMI_MAX_BODY_BYTES || '900000', 10) || 900000));
+const MAX_BODY_BYTES = Math.min(2 * 1024 * 1024, Math.max(100000, parseInt(process.env.GROQ_MAX_BODY_BYTES || '900000', 10) || 900000));
 
 function esTPD(mensaje) {
   if (!mensaje || typeof mensaje !== 'string') return false;
@@ -93,12 +96,12 @@ async function llamarKimiConClave(apiKey, mensajes, opciones) {
   const bodyStr = JSON.stringify(body);
   if (bodyStr.length > MAX_BODY_BYTES) {
     throw new Error(
-      `La solicitud a Kimi es demasiado grande (${(bodyStr.length / 1024).toFixed(0)} KB). Reduce el tamaño del prompt o del bloque BC3.`
+      `La solicitud es demasiado grande (${(bodyStr.length / 1024).toFixed(0)} KB). Reduce el tamaño del prompt o del bloque BC3.`
     );
   }
   let response;
   try {
-    response = await fetch(KIMI_URL, {
+    response = await fetch(GROQ_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -107,17 +110,17 @@ async function llamarKimiConClave(apiKey, mensajes, opciones) {
       body: bodyStr,
     });
   } catch (err) {
-    throw new Error('Error de red al llamar a Kimi: ' + (err?.message || err));
+    throw new Error('Error de red al llamar al backend: ' + (err?.message || err));
   }
   let data;
   try {
     const text = await response.text();
     data = text ? JSON.parse(text) : {};
   } catch (_) {
-    throw new Error('Kimi devolvió respuesta no JSON (status ' + response.status + ').');
+    throw new Error('Respuesta no JSON (status ' + response.status + ').');
   }
   if (!response.ok) {
-    const msg = (data && data.error && data.error.message) ? data.error.message : 'Error Kimi';
+    const msg = (data && data.error && data.error.message) ? data.error.message : 'Error API';
     throw new Error(msg);
   }
   return (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content)
@@ -136,7 +139,7 @@ async function llamarKimi(mensajes, opciones = {}) {
 
   const numKeys = keys.length;
   if (numKeys === 0) {
-    throw new Error('Ninguna llave Kimi configurada o todas están bloqueadas desde la app (GET /llaves → POST /llaves para activar).');
+    throw new Error('Ninguna llave configurada en el backend o todas están bloqueadas desde la app (GET /llaves → POST /llaves para activar).');
   }
 
   const opts = {
@@ -223,10 +226,10 @@ async function llamarKimi(mensajes, opciones = {}) {
 function getInfoLlaves() {
   const allKeys = obtenerLlaves();
   const configuradas = [1, 2, 3, 4].filter(n => allKeys[n - 1]).map(n => {
-    const nombre = (process.env['KIMI_LLAVE_' + n + '_NOMBRE'] || process.env['KIMI_LLAVE_NOMBRE_' + n] || ('kimi_llave_' + n)).trim();
+    const nombre = (process.env['GROQ_LLAVE_' + n + '_NOMBRE'] || process.env['GROQ_LLAVE_NOMBRE_' + n] || ('groq_llave_' + n)).trim();
     const modelo = getModeloParaLlave(n);
     const info_limite = '60 solicitudes/min, 1.000/día. 10K tokens/min, 300K tokens/día.';
-    return { numero: n, configurada: true, nombre: nombre || 'kimi_llave_' + n, proveedor: 'kimi', modelo, info_limite };
+    return { numero: n, configurada: true, nombre: nombre || 'groq_llave_' + n, proveedor: 'kimi', modelo, info_limite };
   });
   const override = getLlavesActivas();
   const activas = override === undefined ? [1] : (override === null ? configuradas.map(c => c.numero) : override);

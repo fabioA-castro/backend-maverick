@@ -19,7 +19,7 @@ console.log(`Config cargada. Prompts cargados: ${numPrompts}`);
 
 const kimiService = require('./servicios/kimiService');
 const numLlaves = kimiService.getNumLlaves ? kimiService.getNumLlaves() : 0;
-console.log(`Llaves Kimi configuradas: ${numLlaves} (KIMI_API_KEY, KIMI_API_KEY_2, KIMI_API_KEY_3, KIMI_API_KEY_4)`);
+console.log(`Llaves configuradas: ${numLlaves} (GROQ_API_KEY, GROQ_API_KEY_2, …). Modelo: ${kimiService.getModeloParaLlave(1) || 'moonshotai/kimi-k2-instruct-0905'}`);
 if (numLlaves > 0) {
   const info = kimiService.getInfoLlaves();
   info.llaves.forEach(l => console.log(`  Llave ${l.numero} → modelo: ${l.modelo}`));
