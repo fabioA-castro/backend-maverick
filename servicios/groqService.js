@@ -306,7 +306,7 @@ async function llamarGroq(mensajes, opciones = {}) {
     for (let i = 0; i < numKeys; i++) {
       const idx = (roundRobinIndex + i) % numKeys;
       const apiKey = keys[idx];
-        const numLlave = idx + 1;
+      const numLlave = idx + 1;
       const optsLlave = optsConModeloParaLlave(opts, numLlave);
       console.log('[Groq] Completar (no BC3): usando llave', numLlave);
       try {
