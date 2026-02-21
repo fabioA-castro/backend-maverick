@@ -35,18 +35,21 @@ function getLlaveSoloBC3() {
   return n >= 1 && n <= MAX_LLAVES ? n : null;
 }
 
-/** Primera llave (1-4) que tiene modelo groq/compuesto; para creación de JSON/árbol BC3 (muchos tokens). */
+/** ID del modelo compound en Groq (70K TPM, 250 RPD). */
+const MODELO_COMPOUND = 'groq/compound';
+
+/** Primera llave (1-4) que tiene modelo groq/compound; para creación de JSON/árbol BC3 (muchos tokens). */
 function getLlaveCompuesto() {
   for (let n = 1; n <= MAX_LLAVES; n++) {
     const m = getModeloParaLlave(n);
-    if (m && m.toLowerCase().includes('groq/compuesto')) return n;
+    if (m && (m.toLowerCase().includes('groq/compound') || m.toLowerCase().includes('groq/compuesto'))) return n;
   }
   return null;
 }
 
 /**
  * Modelo por llave (1-4). Variables: GROQ_MODEL_1, GROQ_MODEL_2, GROQ_MODEL_3, GROQ_MODEL_4.
- * Ejemplo: Llave 1 para BC3 (muchos tokens) → GROQ_MODEL_1=groq/compuesto
+ * Ejemplo: Llave 1 para BC3 (muchos tokens) → GROQ_MODEL_1=groq/compound
  *          Llave 2 para muchas llamadas → GROQ_MODEL_2=moonshotai/kimi-k2-instruct-0905
  */
 function getModeloParaLlave(numLlave) {
@@ -142,14 +145,17 @@ async function llamarGroq(mensajes, opciones = {}) {
   };
 
   // Creación de JSON/árbol BC3: usar llave con groq/compuesto (muchos tokens) o la dedicada GROQ_LLAVE_SOLO_BC3.
-  const llaveBC3 = llaveSoloBC3 ?? getLlaveCompuesto();
+  const llaveCompuesto = getLlaveCompuesto();
+  const llaveBC3 = llaveSoloBC3 ?? llaveCompuesto;
   if (esArbolBC3 && llaveBC3 != null) {
     const keysCompletas = obtenerLlaves();
     const idxBC3 = llaveBC3 - 1;
     if (idxBC3 < keysCompletas.length && keysCompletas[idxBC3]) {
       const apiKeyBC3 = keysCompletas[idxBC3];
       let ultimoError = null;
-      const optsBC3 = optsConModeloParaLlave(opts, llaveBC3);
+      // Si la llave BC3 es la de compound, forzar modelo groq/compound (no usar el por defecto openai/gpt-oss-120b).
+      const modeloBC3 = (llaveBC3 === llaveCompuesto) ? MODELO_COMPOUND : (getModeloParaLlave(llaveBC3) || opts.modelo);
+      const optsBC3 = { ...opts, modelo: modeloBC3 };
       for (let r = 0; r < MAX_REINTENTOS_TPM_MISMA_LLAVE; r++) {
         try {
           return await llamarGroqConClave(apiKeyBC3, mensajes, optsBC3);
