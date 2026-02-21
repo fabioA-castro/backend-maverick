@@ -452,13 +452,22 @@ async function llamarGroq(mensajes, opciones = {}) {
   }
 }
 
-/** Para GET /llaves: lista de llaves 1-4 con nombre y proveedor (groq|kimi); por defecto solo llave 1 activa. */
+/** Texto informativo por proveedor: límite de llamadas/día para que el usuario sepa qué esperar. */
+function getInfoLimitePorProveedor(proveedor) {
+  if (proveedor === 'kimi') {
+    return 'Esta llave permite más llamadas por día.';
+  }
+  return '250 llamadas por día. Si te pasas, tendrás que esperar 24 horas.';
+}
+
+/** Para GET /llaves: lista de llaves 1-4 con nombre, proveedor e info de límite; por defecto solo llave 1 activa. */
 function getInfoLlaves() {
   const allKeys = obtenerLlaves();
   const configuradas = [1, 2, 3, 4].filter(n => allKeys[n - 1]).map(n => {
     const nombre = (process.env['GROQ_LLAVE_' + n + '_NOMBRE'] || process.env['GROQ_LLAVE_NOMBRE_' + n] || ('groq_llave_' + n)).trim();
     const proveedor = getProveedorParaSlot(n);
-    return { numero: n, configurada: true, nombre: nombre || 'groq_llave_' + n, proveedor };
+    const info_limite = getInfoLimitePorProveedor(proveedor);
+    return { numero: n, configurada: true, nombre: nombre || 'groq_llave_' + n, proveedor, info_limite };
   });
   const override = getLlavesActivas();
   const activas = override === undefined ? [1] : (override === null ? configuradas.map(c => c.numero) : override);
