@@ -6,7 +6,8 @@
  * La app Android no se entera; Railway/backend lo resuelve.
  */
 
-const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
+/** URL de la API de Groq. Por defecto la oficial; puedes cambiarla con la variable de entorno GROQ_API_URL. */
+const GROQ_URL = (process.env.GROQ_API_URL || 'https://api.groq.com/openai/v1/chat/completions').trim();
 
 /** Máximo de llaves. 1: CLAVE_API_GROQ_2; 2: GROQ_API_KEY o "CLAVE DE API DE GROQ"; 3: GROQ_MODELO_1/GROQ_API_KEY_3; 4: GROQ_API_KEY_4. */
 const MAX_LLAVES = 4;
