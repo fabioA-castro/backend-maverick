@@ -30,8 +30,8 @@ function postLlaves(req, res) {
         return res.json({ ok: true, solo_bc3_por_tarea: null, mensaje: 'Llave BC3 liberada.' });
       }
       const num = parseInt(n, 10);
-      if (num < 1 || num > 4) {
-        return res.status(400).json({ error: 'solo_bc3_por_tarea debe ser 1, 2, 3 o 4.' });
+      if (num < 1 || num > 5) {
+        return res.status(400).json({ error: 'solo_bc3_por_tarea debe ser 1, 2, 3, 4 o 5.' });
       }
       const info = kimiService.getInfoLlaves();
       const activas = info.activas || [];
@@ -47,7 +47,7 @@ function postLlaves(req, res) {
     }
     const solo = body.solo_llaves || body.activas;
     if (Array.isArray(solo)) {
-      const numeros = solo.map(n => parseInt(n, 10)).filter(n => n >= 1 && n <= 4);
+      const numeros = solo.map(n => parseInt(n, 10)).filter(n => n >= 1 && n <= 5);
       if (numeros.length === 0) {
         return res.status(400).json({ error: 'Debe haber al menos una llave activa. No se pueden desactivar todas.' });
       }

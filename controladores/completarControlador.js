@@ -17,6 +17,7 @@ function esPeticionBC3(promptId) {
 const fs = require('fs');
 const path = require('path');
 const kimiService = require('../servicios/kimiService');
+const huggingFaceService = require('../servicios/huggingFaceService');
 const promptsData = require('../data/promptsData');
 const config = require('../configLoader');
 
@@ -63,10 +64,29 @@ async function completar(req, res) {
     if (esBC3 && promptId) {
       console.log(`[BC3] ${promptId}${datos.INDICE_BLOQUE != null ? ` bloque ${datos.INDICE_BLOQUE}` : ''} - IA trabajando...`);
     }
-    const text = await kimiService.llamarKimi(
-      [{ role: 'user', content: prompt }],
-      opts
-    );
+    const mensajes = [{ role: 'user', content: prompt }];
+    let text;
+    const usarHuggingFace = req.body?.provider === 'huggingface' && huggingFaceService.estaConfigurado();
+    if (usarHuggingFace) {
+      text = await huggingFaceService.llamarHuggingFace(mensajes, {
+        max_tokens: opts.max_tokens,
+        temperatura: opts.temperatura,
+      });
+    } else {
+      try {
+        text = await kimiService.llamarKimi(mensajes, opts);
+      } catch (e) {
+        if (huggingFaceService.estaConfigurado()) {
+          console.log('Kimi/Groq falló, intentando Hugging Face como respaldo:', e?.message);
+          text = await huggingFaceService.llamarHuggingFace(mensajes, {
+            max_tokens: opts.max_tokens,
+            temperatura: opts.temperatura,
+          });
+        } else {
+          throw e;
+        }
+      }
+    }
     if (esBC3 && promptId) {
       console.log(`[BC3] ${promptId}${datos.INDICE_BLOQUE != null ? ` bloque ${datos.INDICE_BLOQUE}` : ''} - IA terminó.`);
     }
@@ -74,7 +94,7 @@ async function completar(req, res) {
   } catch (e) {
     console.error(e);
     logError('completar:', e);
-    res.status(500).json({ error: e.message || 'Error al llamar a Kimi' });
+    res.status(500).json({ error: e.message || 'Error al llamar a la IA' });
   }
 }
 

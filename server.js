@@ -18,8 +18,12 @@ const numPrompts = promptsData.getList().length;
 console.log(`Config cargada. Prompts cargados: ${numPrompts}`);
 
 const kimiService = require('./servicios/kimiService');
+const huggingFaceService = require('./servicios/huggingFaceService');
 const numLlaves = kimiService.getNumLlaves ? kimiService.getNumLlaves() : 0;
 console.log(`Llaves configuradas: ${numLlaves} (GROQ_API_KEY, GROQ_API_KEY_2, …). Modelo: ${kimiService.getModeloParaLlave(1) || 'moonshotai/kimi-k2-instruct-0905'}`);
+if (huggingFaceService.estaConfigurado()) {
+  console.log(`Hugging Face configurado (modelo: ${huggingFaceService.getModelId()}). Se usará como respaldo si Groq falla, o con provider: 'huggingface'.`);
+}
 if (numLlaves > 0) {
   const info = kimiService.getInfoLlaves();
   info.llaves.forEach(l => console.log(`  Llave ${l.numero} → modelo: ${l.modelo}`));
