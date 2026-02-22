@@ -58,6 +58,22 @@ function getLlavesBC3() {
   return unicos.length > 0 ? unicos : null;
 }
 
+/** Llave (1-4) fijada por la app para una tarea BC3 en curso; null = no fijada (usar env o todas las activas). */
+let llaveBC3PorTarea = null;
+
+function setLlaveBC3PorTarea(n) {
+  if (n === null || n === undefined) {
+    llaveBC3PorTarea = null;
+    return;
+  }
+  const num = parseInt(n, 10);
+  if (num >= 1 && num <= MAX_LLAVES) llaveBC3PorTarea = num;
+}
+
+function getLlaveBC3PorTarea() {
+  return llaveBC3PorTarea;
+}
+
 const MAX_BODY_BYTES = Math.min(2 * 1024 * 1024, Math.max(100000, parseInt(process.env.GROQ_MAX_BODY_BYTES || '900000', 10) || 900000));
 
 function esTPD(mensaje) {
@@ -134,7 +150,8 @@ async function llamarKimi(mensajes, opciones = {}) {
   const activas = override === undefined ? [1] : (override === null ? [1, 2, 3, 4].filter(n => allKeys[n - 1]) : override);
   let keys = activas.map(n => allKeys[n - 1]).filter(Boolean);
   const keyNumeros = activas.filter((_, i) => keys[i]);
-  const llavesBC3 = getLlavesBC3();
+  const llaveFijada = getLlaveBC3PorTarea();
+  const llavesBC3 = llaveFijada != null ? [llaveFijada] : getLlavesBC3();
   const esArbolBC3 = !!opciones.esArbolBC3;
 
   const numKeys = keys.length;
@@ -154,10 +171,13 @@ async function llamarKimi(mensajes, opciones = {}) {
   if (esArbolBC3 && llavesBC3 && llavesBC3.length > 0) {
     const keysCompletas = obtenerLlaves();
     const indicesBC3 = llavesBC3.map(n => n - 1).filter(i => i >= 0 && i < keysCompletas.length && keysCompletas[i]);
-    if (indicesBC3.length > 0) {
+    const activaSet = new Set(keyNumeros);
+    const indicesBC3Activas = indicesBC3.filter(i => activaSet.has(i + 1));
+    const listBC3 = llaveFijada != null ? indicesBC3Activas : indicesBC3;
+    if (listBC3.length > 0) {
       let ultimoError = null;
-      const numBC3 = indicesBC3.length;
-      const orden = [...Array(numBC3)].map((_, k) => indicesBC3[(roundRobinBC3Index + k) % numBC3]);
+      const numBC3 = listBC3.length;
+      const orden = [...Array(numBC3)].map((_, k) => listBC3[(roundRobinBC3Index + k) % numBC3]);
       for (const idx of orden) {
         const numLlave = idx + 1;
         const apiKeyBC3 = keysCompletas[idx];
@@ -233,7 +253,7 @@ function getInfoLlaves() {
   });
   const override = getLlavesActivas();
   const activas = override === undefined ? [1] : (override === null ? configuradas.map(c => c.numero) : override);
-  return { llaves: configuradas, activas };
+  return { llaves: configuradas, activas, solo_bc3_por_tarea: getLlaveBC3PorTarea() };
 }
 
 module.exports = {
@@ -241,6 +261,8 @@ module.exports = {
   getNumLlaves,
   getModeloParaLlave,
   getLlavesBC3,
+  getLlaveBC3PorTarea,
+  setLlaveBC3PorTarea,
   getInfoLlaves,
   setLlavesActivas,
   getLlavesActivas,

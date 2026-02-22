@@ -1,6 +1,7 @@
 /**
- * GET /llaves — lista de llaves Kimi configuradas y cuáles están activas.
- * POST /llaves — activar solo ciertas llaves (body: { "activas": [1,4] }) o { "reset": true }.
+ * GET /llaves — lista de llaves Kimi configuradas, cuáles están activas y si hay llave fijada para BC3.
+ * POST /llaves — activar llaves, o fijar/liberar llave para tarea BC3:
+ *   { "activas": [1,4] } | { "reset": true } | { "solo_bc3_por_tarea": 2 } | { "solo_bc3_por_tarea": null }
  */
 const kimiService = require('../servicios/kimiService');
 
@@ -18,7 +19,31 @@ function postLlaves(req, res) {
     const body = req.body || {};
     if (body.reset === true) {
       kimiService.setLlavesActivas(null);
-      return res.json({ ok: true, activas: null, mensaje: 'Se usan de nuevo todas las llaves configuradas.' });
+      kimiService.setLlaveBC3PorTarea(null);
+      return res.json({ ok: true, activas: null, solo_bc3_por_tarea: null, mensaje: 'Se usan de nuevo todas las llaves configuradas.' });
+    }
+    if (body.solo_bc3_por_tarea !== undefined) {
+      const n = body.solo_bc3_por_tarea;
+      if (n === null || n === undefined) {
+        kimiService.setLlaveBC3PorTarea(null);
+        const info = kimiService.getInfoLlaves();
+        return res.json({ ok: true, solo_bc3_por_tarea: null, mensaje: 'Llave BC3 liberada.' });
+      }
+      const num = parseInt(n, 10);
+      if (num < 1 || num > 4) {
+        return res.status(400).json({ error: 'solo_bc3_por_tarea debe ser 1, 2, 3 o 4.' });
+      }
+      const info = kimiService.getInfoLlaves();
+      const activas = info.activas || [];
+      if (!activas.includes(num)) {
+        return res.status(400).json({ error: `La llave ${num} no está activa. Actívala en Ajustes primero.` });
+      }
+      const configurada = (info.llaves || []).some(l => l.numero === num);
+      if (!configurada) {
+        return res.status(400).json({ error: `La llave ${num} no está configurada en el backend.` });
+      }
+      kimiService.setLlaveBC3PorTarea(num);
+      return res.json({ ok: true, solo_bc3_por_tarea: num, mensaje: `Llave ${num} fijada para la tarea BC3.` });
     }
     const solo = body.solo_llaves || body.activas;
     if (Array.isArray(solo)) {
@@ -28,9 +53,9 @@ function postLlaves(req, res) {
       }
       kimiService.setLlavesActivas(numeros);
       const info = kimiService.getInfoLlaves();
-      return res.json({ ok: true, activas: info.activas, mensaje: 'Llaves actualizadas.' });
+      return res.json({ ok: true, activas: info.activas, solo_bc3_por_tarea: info.solo_bc3_por_tarea, mensaje: 'Llaves actualizadas.' });
     }
-    res.status(400).json({ error: 'Envía { "activas": [1,4] } para activar solo esas; { "reset": true } para usar todas.' });
+    res.status(400).json({ error: 'Envía { "activas": [1,4] }, { "solo_bc3_por_tarea": 2 } o { "reset": true }.' });
   } catch (e) {
     res.status(500).json({ error: e.message || 'Error al guardar llaves' });
   }
