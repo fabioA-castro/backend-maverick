@@ -60,6 +60,10 @@ async function completar(req, res) {
       max_tokens: maxTokens,
       esArbolBC3: esBC3,
     };
+    if (req.body?.llaveForzada != null) {
+      const n = parseInt(req.body.llaveForzada, 10);
+      if (n >= 1 && n <= 5) opts.llaveForzada = n;
+    }
 
     if (esBC3 && promptId) {
       console.log(`[BC3] ${promptId}${datos.INDICE_BLOQUE != null ? ` bloque ${datos.INDICE_BLOQUE}` : ''} - IA trabajando...`);

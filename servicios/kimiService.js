@@ -155,7 +155,9 @@ async function llamarKimi(mensajes, opciones = {}) {
   const allKeys = obtenerLlaves();
   const override = getLlavesActivas();
   const activas = override === undefined ? [1] : (override === null ? [1, 2, 3, 4, 5].filter(n => allKeys[n - 1]) : override);
-  const llaveFijada = getLlaveBC3PorTarea();
+  // Prioridad: llave enviada en esta petición (app envía llaveForzada en cada request BC3), luego la fijada por POST /llaves
+  const llaveForzadaBody = opciones.llaveForzada >= 1 && opciones.llaveForzada <= MAX_LLAVES ? opciones.llaveForzada : null;
+  const llaveFijada = llaveForzadaBody ?? getLlaveBC3PorTarea();
   const esArbolBC3 = !!opciones.esArbolBC3;
   // Si hay una llave fijada para BC3, el resto de peticiones (variantes, etc.) usan las otras activas
   let activasParaResto = llaveFijada != null ? activas.filter(n => n !== llaveFijada) : activas;
@@ -170,7 +172,8 @@ async function llamarKimi(mensajes, opciones = {}) {
   }
 
   const numKeys = keys.length;
-  if (numKeys === 0) {
+  const tieneLlavesBC3 = esArbolBC3 && llavesBC3 && llavesBC3.length > 0;
+  if (numKeys === 0 && !tieneLlavesBC3) {
     throw new Error(
       esArbolBC3
         ? 'Ninguna llave configurada para BC3 o la llave fijada no está activa.'
