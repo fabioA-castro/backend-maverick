@@ -148,15 +148,21 @@ async function llamarKimi(mensajes, opciones = {}) {
   const allKeys = obtenerLlaves();
   const override = getLlavesActivas();
   const activas = override === undefined ? [1] : (override === null ? [1, 2, 3, 4].filter(n => allKeys[n - 1]) : override);
-  let keys = activas.map(n => allKeys[n - 1]).filter(Boolean);
-  const keyNumeros = activas.filter((_, i) => keys[i]);
   const llaveFijada = getLlaveBC3PorTarea();
-  const llavesBC3 = llaveFijada != null ? [llaveFijada] : getLlavesBC3();
   const esArbolBC3 = !!opciones.esArbolBC3;
+  // Si hay una llave fijada para BC3, el resto de peticiones (variantes, etc.) no la usan: solo las otras activas
+  const activasParaResto = llaveFijada != null ? activas.filter(n => n !== llaveFijada) : activas;
+  let keys = activasParaResto.map(n => allKeys[n - 1]).filter(Boolean);
+  const keyNumeros = activasParaResto.filter((_, i) => keys[i]);
+  const llavesBC3 = llaveFijada != null ? [llaveFijada] : getLlavesBC3();
 
   const numKeys = keys.length;
   if (numKeys === 0) {
-    throw new Error('Ninguna llave configurada en el backend o todas están bloqueadas desde la app (GET /llaves → POST /llaves para activar).');
+    throw new Error(
+      esArbolBC3
+        ? 'Ninguna llave configurada para BC3 o la llave fijada no está activa.'
+        : 'Ninguna llave disponible para esta tarea. La única llave activa está dedicada a la creación del JSON/árbol BC3.'
+    );
   }
 
   const opts = {
@@ -171,8 +177,8 @@ async function llamarKimi(mensajes, opciones = {}) {
   if (esArbolBC3 && llavesBC3 && llavesBC3.length > 0) {
     const keysCompletas = obtenerLlaves();
     const indicesBC3 = llavesBC3.map(n => n - 1).filter(i => i >= 0 && i < keysCompletas.length && keysCompletas[i]);
-    const activaSet = new Set(keyNumeros);
-    const indicesBC3Activas = indicesBC3.filter(i => activaSet.has(i + 1));
+    const activasSet = new Set(activas);
+    const indicesBC3Activas = indicesBC3.filter(i => activasSet.has(i + 1));
     const listBC3 = llaveFijada != null ? indicesBC3Activas : indicesBC3;
     if (listBC3.length > 0) {
       let ultimoError = null;
