@@ -157,11 +157,17 @@ async function llamarKimi(mensajes, opciones = {}) {
   const activas = override === undefined ? [1] : (override === null ? [1, 2, 3, 4, 5].filter(n => allKeys[n - 1]) : override);
   const llaveFijada = getLlaveBC3PorTarea();
   const esArbolBC3 = !!opciones.esArbolBC3;
-  // Si hay una llave fijada para BC3, el resto de peticiones (variantes, etc.) no la usan: solo las otras activas
-  const activasParaResto = llaveFijada != null ? activas.filter(n => n !== llaveFijada) : activas;
+  // Si hay una llave fijada para BC3, el resto de peticiones (variantes, etc.) usan las otras activas
+  let activasParaResto = llaveFijada != null ? activas.filter(n => n !== llaveFijada) : activas;
   let keys = activasParaResto.map(n => allKeys[n - 1]).filter(Boolean);
-  const keyNumeros = activasParaResto.filter((_, i) => keys[i]);
+  let keyNumeros = activasParaResto.filter((_, i) => keys[i]);
   const llavesBC3 = llaveFijada != null ? [llaveFijada] : getLlavesBC3();
+
+  // Fallback: si es petición normal (no BC3) y no queda ninguna llave pero la reservada sí está activa, usarla
+  if (!esArbolBC3 && keys.length === 0 && llaveFijada != null && activas.includes(llaveFijada) && allKeys[llaveFijada - 1]) {
+    keys = [allKeys[llaveFijada - 1]];
+    keyNumeros = [llaveFijada];
+  }
 
   const numKeys = keys.length;
   if (numKeys === 0) {
